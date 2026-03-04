@@ -12,9 +12,20 @@ const state = {
     isTyping: false,
     currentPanel: 'quick', // 'quick' or 'chat' (for mobile)
     theme: localStorage.getItem('uitm-theme') || 'light',
-    model: 'deepseek/deepseek-r1',
+    model: 'deepseek/deepseek-v3.2',
     currentReasoning: '',
-    currentContent: ''
+    currentContent: '',
+
+    // Voice input state
+    voice: {
+        isRecording: false,
+        recognition: null,
+        silenceTimer: null,
+        transcript: '',
+        silenceThreshold: 5000, // 5 seconds
+        isSupported: false,
+        errorHandled: false
+    }
 };
 
 // ========================================
@@ -50,7 +61,13 @@ const elements = {
     quickItems: document.querySelectorAll('.quick-item'),
     
     // Welcome timestamp
-    welcomeTime: document.getElementById('welcomeTime')
+    welcomeTime: document.getElementById('welcomeTime'),
+
+    // Voice input
+    inputContainer: document.getElementById('inputContainer'),
+    micButton: document.getElementById('micButton'),
+    inputHint: document.getElementById('inputHint'),
+    voiceVisualizer: document.getElementById('voiceVisualizer')
 };
 
 // ========================================
@@ -81,6 +98,9 @@ function initializeApp() {
     if (window.innerWidth >= 1024) {
         elements.messageInput.focus();
     }
+
+    // Initialize voice input
+    initializeVoiceInput();
 }
 
 // ========================================
@@ -113,6 +133,9 @@ function setupEventListeners() {
         elements.liveReasoningContainer.classList.toggle('minimized');
         elements.liveReasoningContainer.classList.toggle('expanded');
     });
+
+    // Voice input toggle
+    elements.micButton.addEventListener('click', toggleVoiceInput);
     
     // Window resize
     window.addEventListener('resize', handleResize);
@@ -526,6 +549,181 @@ function addErrorMessage(message) {
 // ========================================
 // UTILITY FUNCTIONS
 // ========================================
+
+// ========================================
+// VOICE INPUT MODULE
+// ========================================
+
+function initializeVoiceInput() {
+    // Check browser support
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+        console.log('Speech recognition not supported');
+        elements.micButton.style.display = 'none';
+        return;
+    }
+
+    state.voice.isSupported = true;
+    state.voice.recognition = new SpeechRecognition();
+
+    // Configure recognition
+    state.voice.recognition.continuous = true;
+    state.voice.recognition.interimResults = true;
+    state.voice.recognition.lang = 'ms-MY'; // Malay language
+
+    // Event handlers
+    state.voice.recognition.onstart = handleVoiceStart;
+    state.voice.recognition.onresult = handleVoiceResult;
+    state.voice.recognition.onerror = handleVoiceError;
+    state.voice.recognition.onend = handleVoiceEnd;
+}
+
+function toggleVoiceInput() {
+    if (!state.voice.isSupported) return;
+
+    if (state.voice.isRecording) {
+        stopVoiceInput();
+    } else {
+        startVoiceInput();
+    }
+}
+
+function startVoiceInput() {
+    try {
+        state.voice.transcript = '';
+        state.voice.errorHandled = false;
+        state.voice.recognition.start();
+    } catch (error) {
+        console.error('Voice start error:', error);
+        elements.inputHint.textContent = 'Tidak dapat memulakan pengenalan suara.';
+        setTimeout(exitVoiceMode, 3000);
+    }
+}
+
+function stopVoiceInput() {
+    state.voice.recognition.stop();
+    clearSilenceTimer();
+}
+
+function handleVoiceStart() {
+    state.voice.isRecording = true;
+    enterVoiceMode();
+}
+
+function handleVoiceResult(event) {
+    let interimTranscript = '';
+    let finalTranscript = '';
+
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+            finalTranscript += transcript;
+        } else {
+            interimTranscript += transcript;
+        }
+    }
+
+    // Update transcript
+    if (finalTranscript) {
+        state.voice.transcript += finalTranscript;
+    }
+
+    // Display current text (final + interim)
+    const displayText = state.voice.transcript + interimTranscript;
+    elements.messageInput.value = displayText;
+
+    // Update char count
+    updateCharCount();
+
+    // Reset silence timer on speech detected
+    if (interimTranscript || finalTranscript) {
+        resetSilenceTimer();
+    }
+}
+
+function handleVoiceError(event) {
+    console.error('Voice recognition error:', event.error);
+
+    // Prevent multiple rapid error handling
+    if (state.voice.errorHandled) return;
+    state.voice.errorHandled = true;
+    setTimeout(() => { state.voice.errorHandled = false; }, 1000);
+
+    if (event.error === 'not-allowed') {
+        alert('Kebenaran mikrofon diperlukan untuk ciri suara.');
+    } else if (event.error === 'no-speech') {
+        // No speech detected, just exit voice mode
+        elements.inputHint.textContent = 'Tiada suara dikesan. Cuba lagi.';
+        setTimeout(exitVoiceMode, 2000);
+    } else if (event.error === 'network') {
+        // Network error - speech API requires internet or HTTPS
+        console.log('Network error: Speech recognition requires internet connection');
+        elements.inputHint.textContent = 'Ralat rangkaian. Pastikan internet aktif.';
+        setTimeout(exitVoiceMode, 3000);
+        return; // Don't call exitVoiceMode immediately, let user see the message
+    } else if (event.error === 'aborted') {
+        // Recognition aborted, no action needed
+        console.log('Speech recognition aborted');
+    }
+
+    exitVoiceMode();
+    state.voice.isRecording = false;
+    clearSilenceTimer();
+}
+
+function handleVoiceEnd() {
+    state.voice.isRecording = false;
+
+    // If we have transcript, send it
+    if (state.voice.transcript.trim()) {
+        sendVoiceMessage();
+    } else {
+        exitVoiceMode();
+    }
+}
+
+function resetSilenceTimer() {
+    clearSilenceTimer();
+    state.voice.silenceTimer = setTimeout(() => {
+        // 5 seconds of silence - auto send
+        if (state.voice.isRecording) {
+            stopVoiceInput();
+        }
+    }, state.voice.silenceThreshold);
+}
+
+function clearSilenceTimer() {
+    if (state.voice.silenceTimer) {
+        clearTimeout(state.voice.silenceTimer);
+        state.voice.silenceTimer = null;
+    }
+}
+
+function enterVoiceMode() {
+    elements.inputContainer.classList.add('voice-mode');
+    elements.micButton.classList.add('active');
+    elements.inputHint.textContent = 'Mendengar... berhenti bercakap untuk hantar';
+    elements.messageInput.placeholder = 'Dengar... (bercakap sekarang)';
+    elements.messageInput.value = '';
+}
+
+function exitVoiceMode() {
+    elements.inputContainer.classList.remove('voice-mode');
+    elements.micButton.classList.remove('active');
+    elements.inputHint.textContent = 'Tekan Enter untuk hantar, Shift+Enter untuk baris baru';
+    elements.messageInput.placeholder = 'Taip mesej anda di sini...';
+}
+
+function sendVoiceMessage() {
+    const message = state.voice.transcript.trim();
+    if (message) {
+        elements.messageInput.value = message;
+        sendMessage();
+    }
+    state.voice.transcript = '';
+    exitVoiceMode();
+}
 
 // Expose toggleReasoning to global scope for onclick handlers
 window.toggleReasoning = toggleReasoning;

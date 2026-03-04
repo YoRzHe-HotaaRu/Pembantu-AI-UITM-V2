@@ -773,6 +773,103 @@ p {
 }
 
 /* ========================================
+   VOICE INPUT STYLES
+   ======================================== */
+
+/* Input Actions Container */
+.input-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+/* Microphone Button */
+.mic-button {
+    width: 44px;
+    height: 44px;
+    background-color: transparent;
+    border: 2px solid var(--border-color);
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: all 0.2s ease;
+}
+
+.mic-button:hover {
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+}
+
+.mic-button.active {
+    background-color: var(--accent-primary);
+    border-color: var(--accent-primary);
+    color: white;
+    animation: micPulse 1.5s ease-in-out infinite;
+}
+
+.mic-button svg {
+    width: 20px;
+    height: 20px;
+}
+
+@keyframes micPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4); }
+    50% { box-shadow: 0 0 0 8px rgba(220, 38, 38, 0); }
+}
+
+/* Voice Mode State */
+.input-container.voice-mode {
+    border-color: var(--accent-primary);
+    background-color: rgba(220, 38, 38, 0.05);
+    animation: voiceGlow 2s ease-in-out infinite;
+}
+
+@keyframes voiceGlow {
+    0%, 100% { box-shadow: 0 0 5px rgba(220, 38, 38, 0.3); }
+    50% { box-shadow: 0 0 15px rgba(220, 38, 38, 0.5); }
+}
+
+.input-container.voice-mode #messageInput {
+    display: none;
+}
+
+.input-container.voice-mode .voice-visualizer {
+    display: flex;
+}
+
+/* Voice Visualizer */
+.voice-visualizer {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    height: 44px;
+    flex: 1;
+    padding: 0 0.5rem;
+}
+
+.voice-visualizer span {
+    width: 4px;
+    background-color: var(--accent-primary);
+    border-radius: 2px;
+    animation: soundWave 0.5s ease-in-out infinite;
+}
+
+.voice-visualizer span:nth-child(1) { animation-delay: 0s; height: 8px; }
+.voice-visualizer span:nth-child(2) { animation-delay: 0.1s; height: 16px; }
+.voice-visualizer span:nth-child(3) { animation-delay: 0.2s; height: 12px; }
+.voice-visualizer span:nth-child(4) { animation-delay: 0.3s; height: 20px; }
+.voice-visualizer span:nth-child(5) { animation-delay: 0.15s; height: 14px; }
+
+@keyframes soundWave {
+    0%, 100% { transform: scaleY(0.5); opacity: 0.7; }
+    50% { transform: scaleY(1); opacity: 1; }
+}
+
+/* ========================================
    MOBILE TOGGLE
    ======================================== */
 
@@ -1142,7 +1239,12 @@ p {
         width: 40px;
         height: 40px;
     }
-    
+
+    .mic-button {
+        width: 40px;
+        height: 40px;
+    }
+
     .shortcut-hint {
         display: none;
     }

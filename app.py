@@ -18,7 +18,7 @@ app.secret_key = os.getenv('FLASK_SECRET_KEY', 'uitm-chatbot-secret-key')
 # OpenRouter Configuration
 OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY')
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-DEFAULT_MODEL = os.getenv('DEFAULT_MODEL', 'deepseek/deepseek-r1')
+DEFAULT_MODEL = os.getenv('DEFAULT_MODEL', 'deepseek/deepseek-v3.2')
 
 # System prompt for UITM Receptionist
 SYSTEM_PROMPT = """Anda adalah Pembantu AI rasmi Universiti Teknologi MARA (UITM), Malaysia.

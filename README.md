@@ -133,11 +133,11 @@ Semasa AI menjawab:
 Edit `app.py` atau ubah dalam `.env`:
 
 ```python
-DEFAULT_MODEL = 'deepseek/deepseek-r1'  # Model dengan reasoning
+DEFAULT_MODEL = 'deepseek/deepseek-v3.2'  # Model dengan reasoning
 ```
 
 Model lain yang disyorkan:
-- `deepseek/deepseek-r1` - Percuma, reasoning hebat
+- `deepseek/deepseek-v3.2` - Percuma, reasoning hebat
 - `openai/o3-mini` - Reasoning OpenAI
 - `anthropic/claude-3-sonnet` - Pilihan berbayar
 

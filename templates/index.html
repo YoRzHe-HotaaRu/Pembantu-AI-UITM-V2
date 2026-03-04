@@ -249,20 +249,31 @@
 
                 <!-- Input Area -->
                 <div class="input-area">
-                    <div class="input-container">
-                        <textarea 
-                            id="messageInput" 
-                            placeholder="Taip mesej anda di sini..." 
+                    <div class="input-container" id="inputContainer">
+                        <textarea
+                            id="messageInput"
+                            placeholder="Taip mesej anda di sini..."
                             rows="1"
                             maxlength="2000"
                         ></textarea>
-                        <button class="send-button" id="sendButton" aria-label="Hantar mesej">
-                            <i data-lucide="send"></i>
-                        </button>
+
+                        <!-- Voice Visualizer (shown during voice input) -->
+                        <div class="voice-visualizer" id="voiceVisualizer">
+                            <span></span><span></span><span></span><span></span><span></span>
+                        </div>
+
+                        <div class="input-actions">
+                            <button class="mic-button" id="micButton" aria-label="Gunakan suara">
+                                <i data-lucide="mic"></i>
+                            </button>
+                            <button class="send-button" id="sendButton" aria-label="Hantar mesej">
+                                <i data-lucide="send"></i>
+                            </button>
+                        </div>
                     </div>
                     <div class="input-footer">
                         <span class="char-count" id="charCount">0 / 2000</span>
-                        <span class="shortcut-hint">Tekan Enter untuk hantar, Shift+Enter untuk baris baru</span>
+                        <span class="input-hint" id="inputHint">Tekan Enter untuk hantar, Shift+Enter untuk baris baru</span>
                     </div>
                 </div>
             </div>
