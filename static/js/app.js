@@ -78,7 +78,8 @@ const elements = {
     inputContainer: document.getElementById('inputContainer'),
     micButton: document.getElementById('micButton'),
     inputHint: document.getElementById('inputHint'),
-    voiceVisualizer: document.getElementById('voiceVisualizer')
+    voiceVisualizer: document.getElementById('voiceVisualizer'),
+    sendingVoiceIndicator: document.getElementById('sendingVoiceIndicator')
 };
 
 // ========================================
@@ -805,7 +806,22 @@ function blobToBase64(blob) {
     });
 }
 
+function showSendingVoiceState() {
+    elements.inputContainer.classList.remove('voice-mode');
+    elements.inputContainer.classList.add('sending-voice');
+    elements.micButton.classList.remove('active');
+    elements.inputHint.textContent = 'Menghantar audio ke AI...';
+}
+
+function hideSendingVoiceState() {
+    elements.inputContainer.classList.remove('sending-voice');
+    elements.inputHint.textContent = 'Tekan Enter untuk hantar, Shift+Enter untuk baris baru';
+}
+
 async function sendAudioMessage(base64Audio) {
+    // Show sending state
+    showSendingVoiceState();
+
     // Disable input while sending
     elements.sendButton.disabled = true;
 
@@ -838,6 +854,8 @@ async function sendAudioMessage(base64Audio) {
         addErrorMessage('Ralat menghantar mesej audio. Sila cuba lagi.');
     }
 
+    // Hide sending state
+    hideSendingVoiceState();
     elements.sendButton.disabled = false;
 }
 

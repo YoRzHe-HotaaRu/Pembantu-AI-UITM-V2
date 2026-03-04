@@ -857,6 +857,46 @@ p {
     50% { transform: scaleY(1); opacity: 1; }
 }
 
+/* Sending Voice Indicator */
+.sending-voice-indicator {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    height: 44px;
+    flex: 1;
+    padding: 0 0.5rem;
+    color: var(--accent-primary);
+    font-weight: 500;
+    animation: sendingPulse 1.5s ease-in-out infinite;
+}
+
+.sending-voice-indicator svg {
+    width: 24px;
+    height: 24px;
+    animation: checkBounce 0.6s ease;
+}
+
+.input-container.sending-voice .sending-voice-indicator {
+    display: flex;
+}
+
+.input-container.sending-voice .voice-visualizer,
+.input-container.sending-voice #messageInput {
+    display: none;
+}
+
+@keyframes sendingPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
+@keyframes checkBounce {
+    0% { transform: scale(0); }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+}
+
 /* ========================================
    MOBILE TOGGLE
    ======================================== */
