@@ -1,4 +1,4 @@
-# Penerima AI UITM
+# Pembantu AI UITM
 
 Sistem chatbot AI rasmi untuk Universiti Teknologi MARA (UITM) yang membantu pelawat, staf, pelajar, dan pensyarah dengan maklumat universiti.
 
