@@ -358,9 +358,9 @@ function showTypingIndicator() {
     state.currentReasoning = '';
     state.currentContent = '';
     
-    // Reset live reasoning
-    elements.liveReasoningContainer.classList.add('minimized');
-    elements.liveReasoningContainer.classList.remove('expanded');
+    // Show live reasoning expanded by default
+    elements.liveReasoningContainer.classList.add('expanded');
+    elements.liveReasoningContainer.classList.remove('minimized');
     elements.liveReasoningText.textContent = '';
     
     elements.typingIndicator.style.display = 'block';
