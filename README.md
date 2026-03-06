@@ -215,8 +215,24 @@ VTS_RECONNECT_INTERVAL=5.0
 
 ### Parameter VTS
 
-- **MouthOpen** - Parameter khusus untuk bukaan mulut (0.0 - 1.0)
+- **MouthOpen** - Parameter input (tracking) untuk bukaan mulut (0.0 - 1.0)
+- **ParamMouthOpenY** - Parameter output Live2D yang mengawal mulut model
 - **Expressions** - Tag emosi dalam teks AI (contoh: `[HAPPY]`, `[SAD]`)
+
+### Konfigurasi Parameter Mulut
+
+Untuk lip sync berfungsi, anda perlu mengikat parameter input ke output dalam VTube Studio:
+
+1. Buka **VTube Studio** → **Settings** → **Parameters**
+2. Cari atau tambah parameter binding:
+   - **Input**: `MouthOpen` (parameter tracking dari API)
+   - **Output**: `ParamMouthOpenY` (parameter Live2D model)
+3. Laraskan lengkung input/output mengikut keperluan:
+   - **IN**: 0 → 1 (nilai dari aplikasi)
+   - **OUT**: 0 → 1 (bukaan mulut model)
+4. Aktifkan **Smoothing** jika perlu untuk mengurangkan kekerutan
+
+> **Nota Penting**: VTube Studio hanya membolehkan suntikan data ke parameter **tracking** (input), bukan parameter Live2D (output) secara langsung. Oleh itu, pengikatan (binding) adalah diperlukan.
 
 ### Penyelesaian Masalah VTS
 
@@ -234,6 +250,22 @@ VTS_RECONNECT_INTERVAL=5.0
 - Pastikan model Live2D mempunyai parameter `MouthOpen`
 - Semak sambungan VTS dalam tetapan
 - Pastikan TTS diaktifkan
+
+#### Masalah: "Parameter ParamMouthOpenY not found" atau "Parameter injection error"
+**Penyelesaian**:
+- Ralat ini berlaku kerana aplikasi cuba menyuntik data ke parameter Live2D (output) secara langsung
+- VTube Studio hanya membolehkan suntikan ke parameter **tracking** (input)
+- Pastikan anda telah mengikat parameter dalam VTS:
+  1. Buka VTube Studio → Settings → Parameters
+  2. Pastikan `MouthOpen` (Input) diikat ke `ParamMouthOpenY` (Output)
+  3. Jika tiada parameter `MouthOpen`, tambah parameter binding baharu
+- Jangan cuba suntik ke `ParamMouthOpenY` secara langsung - ia adalah parameter output Live2D
+
+#### Masalah: "Did you create it yet?" atau errorID 453
+**Penyelesaian**:
+- Parameter yang diminta tidak wujud sebagai parameter tracking
+- Semak nama parameter dalam kod (`MouthOpen` adalah parameter default yang sepatutnya wujud)
+- Jika menggunakan parameter khusus, pastikan ia dicipta terlebih dahulu dalam VTS
 
 ## Keselamatan
 
