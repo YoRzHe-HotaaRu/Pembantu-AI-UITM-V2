@@ -212,20 +212,20 @@ Garis panduan penggunaan konteks:
 
 # Creator information configuration
 CREATOR_INFO = {
-    "name": "Ts. Zaaba Bin Ahmad",
+    "name": "Zaaba Bin Ahmad",
     "title": "Pencipta AI Receptionist UiTM",
     "image_path": "/static/assets/Zaaba-Ahmad.webp",
     "google_scholar": "https://scholar.google.com/citations?user=PGhzO-oAAAAJ&hl=en",
-    "description": "AI ini dicipta oleh **Ts. Zaaba Bin Ahmad**. Beliau adalah seorang pensyarah dan penyelidik di UiTM yang mengkhusus dalam pembangunan sistem pintar dan aplikasi berasaskan AI.",
+    "description": "AI ini dicipta oleh **Zaaba Bin Ahmad**. Beliau adalah seorang pensyarah dan penyelidik di UiTM yang mengkhusus dalam pembangunan sistem pintar dan aplikasi berasaskan AI.",
     "triggers": [
         # Malay triggers
-        "siapa pencipta", "siapa pembangun", "siapa yang buat", "siapa yang cipta",
-        "siapa yang bina", "siapa owner", "siapa tuan", "pencipta ai",
+        "siapa pencipta", "siapa pembangun", "siapa yang buat", "siapa yang cipta", "siapa yang cipta awak",
+        "siapa yang bina", "siapa owner", "siapa tuan", "pencipta ai", "cipta awak",
         "pembangun ai", "siapa zaaba", "ts zaaba", "zaaba ahmad",
         # English triggers
         "who created you", "who is your creator", "who built you",
         "who made you", "who developed you", "your creator",
-        "who is zaaba", "ts zaaba", "zaaba ahmad"
+        "who is zaaba", "zaaba bin ahmad", "zaaba ahmad"
     ]
 }
 

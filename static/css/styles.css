@@ -1641,6 +1641,153 @@ p {
     }
 }
 
+/* ========================================
+   PERFORMANCE MONITOR OVERLAY
+   ======================================== */
+
+.perf-monitor-overlay {
+    position: fixed;
+    top: 80px;
+    right: 20px;
+    width: 280px;
+    background: var(--bg-secondary);
+    border: 2px solid var(--border-color);
+    box-shadow: 0 4px 20px var(--shadow-color);
+    z-index: 1000;
+    font-family: 'Space Grotesk', sans-serif;
+}
+
+.perf-monitor-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    background: var(--accent-primary);
+    color: white;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.perf-monitor-header svg {
+    width: 16px;
+    height: 16px;
+}
+
+.perf-monitor-content {
+    padding: 1rem;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.perf-section {
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.perf-section:last-child {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+.perf-section h5 {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--accent-primary);
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.perf-section h5 svg {
+    width: 14px;
+    height: 14px;
+}
+
+.perf-metric {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.35rem 0;
+    font-size: 0.85rem;
+}
+
+.perf-metric .perf-label {
+    color: var(--text-secondary);
+}
+
+.perf-metric .perf-value {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-family: 'Inter', monospace;
+}
+
+.perf-value.good {
+    color: #00b894;
+}
+
+.perf-value.warning {
+    color: #fdcb6e;
+}
+
+.perf-value.bad {
+    color: #d63031;
+}
+
+.perf-value.cache-hit {
+    color: #00b894;
+}
+
+.perf-value.cache-miss {
+    color: #fdcb6e;
+}
+
+.perf-value.connected {
+    color: #00b894;
+}
+
+.perf-value.disconnected {
+    color: #d63031;
+}
+
+/* Performance toggle in settings */
+.perf-toggle-container {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.perf-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.perf-label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.perf-desc {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+/* Mobile adjustments for performance monitor */
+@media (max-width: 640px) {
+    .perf-monitor-overlay {
+        top: 70px;
+        right: 10px;
+        left: 10px;
+        width: auto;
+    }
+}
+
 /* Desktop (1400px - 1919px) */
 @media (min-width: 1400px) and (max-width: 1919px) {
     .main-container {

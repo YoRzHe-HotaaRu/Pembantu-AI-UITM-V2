@@ -389,6 +389,90 @@
                         <span class="model-desc">Pengoptimuman tinggi dengan sokongan audio</span>
                     </div>
                 </div>
+
+                <!-- Performance Monitor Section -->
+                <div class="settings-section">
+                    <h4><i data-lucide="activity"></i> Prestasi</h4>
+                    <div class="perf-toggle-container">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="perfMonitorToggle">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <div class="perf-info">
+                            <span class="perf-label">Paparan Prestasi</span>
+                            <span class="perf-desc">Tunjukkan maklumat latensi dan kelajuan</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Performance Monitor Overlay -->
+    <div class="perf-monitor-overlay" id="perfMonitorOverlay" style="display: none;">
+        <div class="perf-monitor-header">
+            <i data-lucide="activity"></i>
+            <span>Prestasi Sistem</span>
+        </div>
+        <div class="perf-monitor-content">
+            <!-- LLM Stats -->
+            <div class="perf-section">
+                <h5><i data-lucide="brain"></i> AI Model</h5>
+                <div class="perf-metric">
+                    <span class="perf-label">Masa Respons:</span>
+                    <span class="perf-value" id="llmResponseTime">-</span>
+                </div>
+                <div class="perf-metric">
+                    <span class="perf-label">Token/jam:</span>
+                    <span class="perf-value" id="llmTokensPerSec">-</span>
+                </div>
+                <div class="perf-metric">
+                    <span class="perf-label">Jumlah Token:</span>
+                    <span class="perf-value" id="llmTotalTokens">-</span>
+                </div>
+            </div>
+            
+            <!-- TTS Stats -->
+            <div class="perf-section">
+                <h5><i data-lucide="volume-2"></i> TTS</h5>
+                <div class="perf-metric">
+                    <span class="perf-label">Masa Jana:</span>
+                    <span class="perf-value" id="ttsGenTime">-</span>
+                </div>
+                <div class="perf-metric">
+                    <span class="perf-label">Saiz Audio:</span>
+                    <span class="perf-value" id="ttsAudioSize">-</span>
+                </div>
+                <div class="perf-metric">
+                    <span class="perf-label">Lip Sync:</span>
+                    <span class="perf-value" id="ttsLipSyncFrames">-</span>
+                </div>
+                <div class="perf-metric">
+                    <span class="perf-label">Cache:</span>
+                    <span class="perf-value" id="ttsCacheStatus">-</span>
+                </div>
+            </div>
+            
+            <!-- VTS Stats -->
+            <div class="perf-section">
+                <h5><i data-lucide="tv"></i> VTube Studio</h5>
+                <div class="perf-metric">
+                    <span class="perf-label">Status:</span>
+                    <span class="perf-value" id="vtsConnectionStatus">-</span>
+                </div>
+                <div class="perf-metric">
+                    <span class="perf-label">Latensi:</span>
+                    <span class="perf-value" id="vtsLatency">-</span>
+                </div>
+            </div>
+            
+            <!-- Network Stats -->
+            <div class="perf-section">
+                <h5><i data-lucide="wifi"></i> Rangkaian</h5>
+                <div class="perf-metric">
+                    <span class="perf-label">Masa Pelayan:</span>
+                    <span class="perf-value" id="serverResponseTime">-</span>
+                </div>
             </div>
         </div>
     </div>

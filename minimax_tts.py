@@ -36,10 +36,10 @@ class MinimaxTTS:
         "model": "speech-2.8-turbo",
         "voice_id": "Malay_male_1_v1",
         "language_boost": "Malay",
-        "pronunciation_dict": {"tone": ["uitm/UITM", "UiTM/UITM"]},
+        "pronunciation_dict": {"tone": ["uitm/UITM", "UiTM/UITM", "(UiTM)/UITM", "(uitm)/UITM"]},
         "audio_setting": {
-            "sample_rate": 32000,
-            "bitrate": 128000,
+            "sample_rate": 16000,
+            "bitrate": 64000,
             "format": "mp3",
             "channel": 1
         },

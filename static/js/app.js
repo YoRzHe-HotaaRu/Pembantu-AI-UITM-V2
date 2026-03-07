@@ -41,6 +41,36 @@ const state = {
     // Settings modal state
     settings: {
         isOpen: false
+    },
+
+    // Performance monitor state
+    perfMonitor: {
+        enabled: localStorage.getItem('uitm-perf-monitor-enabled') === 'true',
+        metrics: {
+            llm: {
+                responseTime: null,
+                tokensPerSec: null,
+                totalTokens: null
+            },
+            tts: {
+                genTime: null,
+                audioSize: null,
+                lipSyncFrames: null,
+                cacheStatus: null
+            },
+            vts: {
+                connectionStatus: 'Tidak disambung',
+                latency: null
+            },
+            network: {
+                serverResponseTime: null
+            }
+        },
+        timing: {
+            llmStart: null,
+            ttsStart: null,
+            serverStart: null
+        }
     }
 };
 
@@ -62,6 +92,8 @@ const elements = {
     vtsToggle: document.getElementById('vtsToggle'),
     vtsStatus: document.getElementById('vtsStatus'),
     vtsSettingsSection: document.getElementById('vtsSettingsSection'),
+    perfMonitorToggle: document.getElementById('perfMonitorToggle'),
+    perfMonitorOverlay: document.getElementById('perfMonitorOverlay'),
     html: document.documentElement,
     
     // Panels
@@ -136,6 +168,9 @@ function initializeApp() {
     // Initialize VTS (VTube Studio)
     initializeVTS();
     checkVTSStatus();
+
+    // Initialize performance monitor
+    initializePerfMonitor();
 }
 
 // ========================================
@@ -154,6 +189,11 @@ function setupEventListeners() {
 
     // TTS toggle
     elements.ttsToggle.addEventListener('change', handleTTSToggle);
+
+    // Performance monitor toggle
+    if (elements.perfMonitorToggle) {
+        elements.perfMonitorToggle.addEventListener('change', handlePerfMonitorToggle);
+    }
 
     // Microphone selection
     elements.microphoneSelect.addEventListener('change', handleMicrophoneSelect);
@@ -528,12 +568,19 @@ function updateLiveContent(content) {
 // API COMMUNICATION
 // ========================================
 
+// Token counter for LLM performance tracking
+let currentTokenCount = 0;
+
 async function sendToAPI() {
     try {
         // Reset state for new message
         state.currentReasoning = '';
         state.currentContent = '';
         state.ragUsed = false;
+        currentTokenCount = 0;
+        
+        // Start LLM timing
+        startLLMTiming();
         
         const response = await fetch('/chat', {
             method: 'POST',
@@ -617,6 +664,9 @@ function processStreamData(data) {
     
     // Handle content (actual response)
     if (delta.content) {
+        // Count tokens (approximate: 1 token ≈ 4 chars for English, 1-2 chars for Malay)
+        currentTokenCount += Math.ceil(delta.content.length / 3);
+        
         // Check if this is a special structured response (e.g., creator info)
         try {
             const parsed = JSON.parse(delta.content);
@@ -634,6 +684,9 @@ function processStreamData(data) {
 
 function finalizeResponse() {
     hideTypingIndicator();
+    
+    // End LLM timing with token count
+    endLLMTiming(currentTokenCount);
     
     // Handle structured response (e.g., creator info with image)
     if (state.structuredResponse) {
@@ -723,6 +776,8 @@ function initializeSettings() {
     updateThemeButtons();
     // Update TTS toggle state
     updateTTSToggle();
+    // Update performance monitor toggle state
+    updatePerfMonitorToggleState();
 }
 
 function updateTTSToggle() {
@@ -745,6 +800,7 @@ function toggleSettingsModal() {
         populateMicrophoneList();
         updateThemeButtons();
         updateTTSToggle();
+        updatePerfMonitorToggleState();
     }
 }
 
@@ -762,6 +818,201 @@ setTheme = function(theme) {
 };
 
 // ========================================
+// PERFORMANCE MONITOR MODULE
+// ========================================
+
+function initializePerfMonitor() {
+    // Show/hide overlay based on saved preference
+    updatePerfMonitorVisibility();
+    
+    // Start periodic VTS status updates for latency tracking
+    if (state.perfMonitor.enabled) {
+        startVTSPerfTracking();
+    }
+}
+
+function updatePerfMonitorToggleState() {
+    if (elements.perfMonitorToggle) {
+        elements.perfMonitorToggle.checked = state.perfMonitor.enabled;
+    }
+}
+
+function handlePerfMonitorToggle(e) {
+    state.perfMonitor.enabled = e.target.checked;
+    localStorage.setItem('uitm-perf-monitor-enabled', state.perfMonitor.enabled);
+    updatePerfMonitorVisibility();
+    
+    if (state.perfMonitor.enabled) {
+        startVTSPerfTracking();
+    }
+}
+
+function updatePerfMonitorVisibility() {
+    if (elements.perfMonitorOverlay) {
+        elements.perfMonitorOverlay.style.display = state.perfMonitor.enabled ? 'block' : 'none';
+    }
+}
+
+// Start tracking LLM request timing
+function startLLMTiming() {
+    if (!state.perfMonitor.enabled) return;
+    state.perfMonitor.timing.llmStart = performance.now();
+}
+
+// End tracking LLM request timing
+function endLLMTiming(tokenCount = null) {
+    if (!state.perfMonitor.enabled || !state.perfMonitor.timing.llmStart) return;
+    
+    const endTime = performance.now();
+    const duration = endTime - state.perfMonitor.timing.llmStart;
+    
+    state.perfMonitor.metrics.llm.responseTime = duration;
+    
+    if (tokenCount && duration > 0) {
+        state.perfMonitor.metrics.llm.tokensPerSec = Math.round((tokenCount / duration) * 1000);
+        state.perfMonitor.metrics.llm.totalTokens = tokenCount;
+    }
+    
+    updatePerfMonitorDisplay();
+    state.perfMonitor.timing.llmStart = null;
+}
+
+// Start tracking TTS generation timing
+function startTTSTiming() {
+    if (!state.perfMonitor.enabled) return;
+    state.perfMonitor.timing.ttsStart = performance.now();
+}
+
+// End tracking TTS generation timing
+function endTTSTiming(audioSize = null, lipSyncFrames = null, cacheHit = false) {
+    if (!state.perfMonitor.enabled || !state.perfMonitor.timing.ttsStart) return;
+    
+    const endTime = performance.now();
+    const duration = endTime - state.perfMonitor.timing.ttsStart;
+    
+    state.perfMonitor.metrics.tts.genTime = duration;
+    
+    if (audioSize !== null) {
+        state.perfMonitor.metrics.tts.audioSize = audioSize;
+    }
+    
+    if (lipSyncFrames !== null) {
+        state.perfMonitor.metrics.tts.lipSyncFrames = lipSyncFrames;
+    }
+    
+    state.perfMonitor.metrics.tts.cacheStatus = cacheHit ? 'Cache' : 'Live';
+    
+    updatePerfMonitorDisplay();
+    state.perfMonitor.timing.ttsStart = null;
+}
+
+// Start tracking server request timing
+function startServerTiming() {
+    if (!state.perfMonitor.enabled) return;
+    state.perfMonitor.timing.serverStart = performance.now();
+}
+
+// End tracking server request timing
+function endServerTiming() {
+    if (!state.perfMonitor.enabled || !state.perfMonitor.timing.serverStart) return;
+    
+    const endTime = performance.now();
+    const duration = endTime - state.perfMonitor.timing.serverStart;
+    
+    state.perfMonitor.metrics.network.serverResponseTime = duration;
+    
+    updatePerfMonitorDisplay();
+    state.perfMonitor.timing.serverStart = null;
+}
+
+// Update VTS performance metrics
+function updateVTSPerfMetrics(status, latency = null) {
+    if (!state.perfMonitor.enabled) return;
+    
+    state.perfMonitor.metrics.vts.connectionStatus = status ? 'Disambung' : 'Tidak disambung';
+    
+    if (latency !== null) {
+        state.perfMonitor.metrics.vts.latency = latency;
+    }
+    
+    updatePerfMonitorDisplay();
+}
+
+// Start periodic VTS tracking
+function startVTSPerfTracking() {
+    // Update VTS status immediately
+    updateVTSPerfMetrics(state.vts.connected);
+    
+    // Update every 5 seconds while monitor is enabled
+    setInterval(() => {
+        if (state.perfMonitor.enabled) {
+            updateVTSPerfMetrics(state.vts.connected);
+        }
+    }, 5000);
+}
+
+// Update the performance monitor display
+function updatePerfMonitorDisplay() {
+    if (!state.perfMonitor.enabled) return;
+    
+    const metrics = state.perfMonitor.metrics;
+    
+    // LLM metrics
+    const llmResponseTimeEl = document.getElementById('llmResponseTime');
+    const llmTokensPerSecEl = document.getElementById('llmTokensPerSec');
+    const llmTotalTokensEl = document.getElementById('llmTotalTokens');
+    
+    if (llmResponseTimeEl && metrics.llm.responseTime !== null) {
+        llmResponseTimeEl.textContent = `${Math.round(metrics.llm.responseTime)}ms`;
+    }
+    if (llmTokensPerSecEl && metrics.llm.tokensPerSec !== null) {
+        llmTokensPerSecEl.textContent = `${metrics.llm.tokensPerSec} t/s`;
+    }
+    if (llmTotalTokensEl && metrics.llm.totalTokens !== null) {
+        llmTotalTokensEl.textContent = metrics.llm.totalTokens.toLocaleString();
+    }
+    
+    // TTS metrics
+    const ttsGenTimeEl = document.getElementById('ttsGenTime');
+    const ttsAudioSizeEl = document.getElementById('ttsAudioSize');
+    const ttsLipSyncFramesEl = document.getElementById('ttsLipSyncFrames');
+    const ttsCacheStatusEl = document.getElementById('ttsCacheStatus');
+    
+    if (ttsGenTimeEl && metrics.tts.genTime !== null) {
+        ttsGenTimeEl.textContent = `${Math.round(metrics.tts.genTime)}ms`;
+    }
+    if (ttsAudioSizeEl && metrics.tts.audioSize !== null) {
+        const sizeKB = (metrics.tts.audioSize / 1024).toFixed(1);
+        ttsAudioSizeEl.textContent = `${sizeKB} KB`;
+    }
+    if (ttsLipSyncFramesEl && metrics.tts.lipSyncFrames !== null) {
+        ttsLipSyncFramesEl.textContent = `${metrics.tts.lipSyncFrames} frame`;
+    }
+    if (ttsCacheStatusEl && metrics.tts.cacheStatus !== null) {
+        ttsCacheStatusEl.textContent = metrics.tts.cacheStatus;
+        ttsCacheStatusEl.className = 'perf-value ' + (metrics.tts.cacheStatus === 'Cache' ? 'cache-hit' : 'cache-miss');
+    }
+    
+    // VTS metrics
+    const vtsStatusEl = document.getElementById('vtsConnectionStatus');
+    const vtsLatencyEl = document.getElementById('vtsLatency');
+    
+    if (vtsStatusEl) {
+        vtsStatusEl.textContent = metrics.vts.connectionStatus;
+        vtsStatusEl.className = 'perf-value ' + (state.vts.connected ? 'connected' : 'disconnected');
+    }
+    if (vtsLatencyEl && metrics.vts.latency !== null) {
+        vtsLatencyEl.textContent = `${Math.round(metrics.vts.latency)}ms`;
+    }
+    
+    // Network metrics
+    const serverResponseTimeEl = document.getElementById('serverResponseTime');
+    if (serverResponseTimeEl && metrics.network.serverResponseTime !== null) {
+        serverResponseTimeEl.textContent = `${Math.round(metrics.network.serverResponseTime)}ms`;
+    }
+}
+
+// ========================================
 // TTS MODULE (Text-to-Speech)
 // ========================================
 
@@ -771,6 +1022,9 @@ async function playTTS(text) {
     
     // Skip if no text
     if (!text || text.trim().length === 0) return;
+    
+    // Start TTS timing
+    startTTSTiming();
     
     // Clean text for TTS (remove markdown formatting)
     const cleanText = text
@@ -807,6 +1061,12 @@ async function playTTS(text) {
             // Response includes lip sync data
             const data = await response.json();
             
+            // End TTS timing with metrics
+            const audioSize = data.audio ? Math.ceil(data.audio.length * 0.75) : 0; // Approximate base64 to bytes
+            const lipSyncFrames = data.lip_sync ? data.lip_sync.length : 0;
+            const cacheHit = data.cached === true;
+            endTTSTiming(audioSize, lipSyncFrames, cacheHit);
+            
             // Decode base64 audio
             const audioBytes = atob(data.audio);
             const audioArray = new Uint8Array(audioBytes.length);
@@ -840,6 +1100,10 @@ async function playTTS(text) {
         } else {
             // Response is audio only
             const audioBlob = await response.blob();
+            
+            // End TTS timing with audio size
+            endTTSTiming(audioBlob.size, 0, false);
+            
             const audioUrl = URL.createObjectURL(audioBlob);
             const audio = new Audio(audioUrl);
             
