@@ -18,6 +18,7 @@ from rag.image_handler import ImageHandler
 
 # Import VTS system
 from vts import VTSConnector, LipSyncAnalyzer, ExpressionMapper, AudioConverter
+from vts import get_idle_animator, get_gesture_controller, get_player
 
 # Load environment variables
 load_dotenv()
@@ -84,6 +85,8 @@ vts_lip_sync = None
 vts_expression_mapper = None
 vts_audio_converter = None
 vts_loop = None  # Persistent event loop for VTS
+vts_idle_animator = None  # Idle animation controller
+vts_gesture_controller = None  # Gesture controller for talking
 
 def run_in_vts_loop(coro):
     """
@@ -134,7 +137,12 @@ if VTS_ENABLED:
         vts_expression_mapper = ExpressionMapper()
         vts_audio_converter = AudioConverter()
         
+        # Initialize liveliness controllers
+        vts_idle_animator = get_idle_animator(vts_connector)
+        vts_gesture_controller = get_gesture_controller(vts_connector)
+        
         print("\n✓ VTS Integration ready! (Will connect on first use)")
+        print("✓ Idle animations and gesture control ready!")
         print("="*60 + "\n")
     except Exception as e:
         print(f"\n⚠ Warning: Could not initialize VTS system: {e}")
@@ -705,8 +713,10 @@ def vts_status():
 @app.route('/vts/connect', methods=['POST'])
 def vts_connect():
     """
-    Connect to VTube Studio
+    Connect to VTube Studio and start idle animations
     """
+    global vts_idle_animator
+    
     if not VTS_ENABLED:
         return jsonify({'error': 'VTS integration is disabled'}), 400
     
@@ -718,6 +728,14 @@ def vts_connect():
         success = run_in_vts_loop(vts_connector.connect())
         
         if success:
+            # Start idle animations
+            if vts_idle_animator:
+                try:
+                    run_in_vts_loop(vts_idle_animator.start())
+                    print("[VTS] Idle animations started")
+                except Exception as e:
+                    print(f"[VTS] Could not start idle animations: {e}")
+            
             return jsonify({
                 'success': True,
                 'message': 'Connected to VTube Studio'
@@ -735,8 +753,10 @@ def vts_connect():
 @app.route('/vts/disconnect', methods=['POST'])
 def vts_disconnect():
     """
-    Disconnect from VTube Studio
+    Disconnect from VTube Studio and stop idle animations
     """
+    global vts_idle_animator
+    
     if not VTS_ENABLED:
         return jsonify({'error': 'VTS integration is disabled'}), 400
     
@@ -744,6 +764,14 @@ def vts_disconnect():
         return jsonify({'error': 'VTS connector not initialized'}), 500
     
     try:
+        # Stop idle animations first
+        if vts_idle_animator:
+            try:
+                run_in_vts_loop(vts_idle_animator.stop())
+                print("[VTS] Idle animations stopped")
+            except Exception as e:
+                print(f"[VTS] Error stopping idle animations: {e}")
+        
         run_in_vts_loop(vts_connector.disconnect())
         
         return jsonify({
@@ -787,9 +815,12 @@ def vts_set_mouth():
 @app.route('/vts/play_lip_sync', methods=['POST'])
 def vts_play_lip_sync():
     """
-    Play lip sync data directly on VTS
+    Play lip sync data directly on VTS with gesture control
     Frontend sends the lip sync data and backend plays it in real-time
+    Includes idle animation pause/resume and talking gestures
     """
+    global vts_idle_animator, vts_gesture_controller
+    
     if not VTS_ENABLED:
         return jsonify({'error': 'VTS integration is disabled'}), 400
     
@@ -798,6 +829,7 @@ def vts_play_lip_sync():
     
     data = request.get_json()
     lip_sync_data = data.get('lip_sync', [])
+    text = data.get('text', '')  # Optional text for emotion detection
     
     if not lip_sync_data:
         return jsonify({'success': True, 'message': 'No lip sync data'})
@@ -806,7 +838,13 @@ def vts_play_lip_sync():
         from vts.lip_sync import LipSyncPlayer
         
         player = LipSyncPlayer(vts_lip_sync)
-        run_in_vts_loop(player.play_lip_sync(vts_connector, lip_sync_data))
+        
+        # Set up liveliness controllers
+        if vts_idle_animator or vts_gesture_controller:
+            player.set_liveliness_controllers(vts_idle_animator, vts_gesture_controller)
+        
+        # Play lip sync with text for emotion-based gestures
+        run_in_vts_loop(player.play_lip_sync(vts_connector, lip_sync_data, text=text))
         
         return jsonify({'success': True})
         

@@ -1,11 +1,20 @@
 """
 Lip Sync Analyzer for VTube Studio
 Analyzes audio data to generate mouth movement parameters.
+Includes integration with idle animator and gesture controller for coordinated animations.
 """
 
 import io
 from typing import List, Tuple, Optional
 import struct
+
+# Import liveliness modules (optional - will work without them)
+try:
+    from .idle_animator import get_idle_animator
+    from .gesture_controller import get_gesture_controller, detect_emotion_from_text
+    LIVELINESS_AVAILABLE = True
+except ImportError:
+    LIVELINESS_AVAILABLE = False
 
 
 class LipSyncAnalyzer:
@@ -225,6 +234,7 @@ class LipSyncPlayer:
     """
     Plays back lip sync data by sending timed parameter updates.
     Coordinates with audio playback for synchronized mouth movement.
+    Integrates with idle animator and gesture controller for full liveliness.
     """
     
     def __init__(self, analyzer: Optional[LipSyncAnalyzer] = None):
@@ -237,9 +247,22 @@ class LipSyncPlayer:
         self.analyzer = analyzer or LipSyncAnalyzer()
         self._current_playback = None
         self._stop_flag = False
+        self._idle_animator = None
+        self._gesture_controller = None
+        
+    def set_liveliness_controllers(self, idle_animator=None, gesture_controller=None):
+        """
+        Set the liveliness controllers for coordinated animations.
+        
+        Args:
+            idle_animator: IdleAnimator instance for idle animations
+            gesture_controller: GestureController instance for talking gestures
+        """
+        self._idle_animator = idle_animator
+        self._gesture_controller = gesture_controller
         
     async def play_lip_sync(self, vts_connector, lip_sync_data: List[Tuple[float, float]],
-                            playback_speed: float = 1.0):
+                            playback_speed: float = 1.0, text: str = ""):
         """
         Play lip sync data with proper timing.
         
@@ -247,6 +270,7 @@ class LipSyncPlayer:
             vts_connector: VTSConnector instance
             lip_sync_data: List of (timestamp, mouth_value) from analyzer
             playback_speed: Audio playback speed multiplier
+            text: Optional text being spoken (for emotion detection and gestures)
         """
         import asyncio
         
@@ -255,8 +279,21 @@ class LipSyncPlayer:
             return
             
         self._stop_flag = False
-        loop = asyncio.get_running_loop()  # Get the loop running this coroutine
+        loop = asyncio.get_running_loop()
         start_time = loop.time()
+        
+        # Pause idle animations while talking
+        if self._idle_animator:
+            self._idle_animator.pause()
+            
+        # Start gesture controller with emotion detection
+        if self._gesture_controller and LIVELINESS_AVAILABLE:
+            emotion = detect_emotion_from_text(text)
+            await self._gesture_controller.start_speaking(text, emotion)
+            # Start gesture update loop
+            gesture_task = asyncio.create_task(self._gesture_controller.update_loop())
+        else:
+            gesture_task = None
         
         print(f"[LipSync] Playing {len(lip_sync_data)} frames, speed={playback_speed}")
         
@@ -285,9 +322,25 @@ class LipSyncPlayer:
                 print(f"[LipSync] Frame {frame_count}: value={mouth_value:.3f}, param={self.analyzer.PARAM_NAME}, success={success}")
             frame_count += 1
         
+        # Stop gesture controller
+        if self._gesture_controller:
+            await self._gesture_controller.stop_speaking()
+            
+        if gesture_task:
+            gesture_task.cancel()
+            try:
+                await gesture_task
+            except asyncio.CancelledError:
+                pass
+        
         # Close mouth when done
         params = self.analyzer.get_mouth_parameters(0.0)
         await vts_connector.set_parameters(params)
+        
+        # Resume idle animations
+        if self._idle_animator:
+            self._idle_animator.resume()
+            
         print(f"[LipSync] Completed {frame_count} frames")
     
     def stop(self):
