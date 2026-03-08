@@ -462,6 +462,8 @@ function formatMessageContent(content) {
         .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
         .replace(/\*(.*?)\*/g, '<em>$1</em>')
         .replace(/`(.*?)`/g, '<code>$1</code>')
+        // Convert markdown links [text](url) to HTML anchor tags
+        .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="message-link">$1</a>')
         .replace(/\n/g, '<br>');
 }
 
@@ -1026,12 +1028,21 @@ async function playTTS(text) {
     // Start TTS timing
     startTTSTiming();
     
-    // Clean text for TTS (remove markdown formatting)
+    // Clean text for TTS (remove markdown formatting and URLs)
     const cleanText = text
         .replace(/\*\*(.*?)\*\*/g, '$1')
         .replace(/\*(.*?)\*/g, '$1')
         .replace(/`(.*?)`/g, '$1')
         .replace(/\n/g, ' ')
+        // Remove URLs (http/https links)
+        .replace(/https?:\/\/[^\s]+/g, '')
+        // Remove markdown links [text](url) - keep only the text
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+        // Remove any remaining URL-like patterns
+        .replace(/www\.[^\s]+/g, '')
+        // Clean up extra spaces left by removed URLs
+        .replace(/\s+/g, ' ')
+        .trim()
         .substring(0, 4000); // Limit to 4000 chars
     
     try {
