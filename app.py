@@ -20,6 +20,7 @@ from rag.image_handler import ImageHandler
 from vts import VTSConnector, LipSyncAnalyzer, ExpressionMapper, AudioConverter
 from vts import get_idle_animator, get_gesture_controller, get_player
 from vts import get_parallel_analyzer
+from vts import GestureAnimator, GestureType, get_gesture_animator
 
 # Import optimized TTS
 try:
@@ -96,6 +97,7 @@ vts_audio_converter = None
 vts_loop = None  # Persistent event loop for VTS
 vts_idle_animator = None  # Idle animation controller
 vts_gesture_controller = None  # Gesture controller for talking
+vts_gesture_animator = None  # Gesture animator for hotkey-based animations
 
 def run_in_vts_loop(coro):
     """
@@ -149,9 +151,11 @@ if VTS_ENABLED:
         # Initialize liveliness controllers
         vts_idle_animator = get_idle_animator(vts_connector)
         vts_gesture_controller = get_gesture_controller(vts_connector)
+        vts_gesture_animator = get_gesture_animator(vts_connector)
         
         print("\n✓ VTS Integration ready! (Will connect on first use)")
         print("✓ Idle animations and gesture control ready!")
+        print("✓ Gesture animator for hotkey animations ready!")
         print("="*60 + "\n")
     except Exception as e:
         print(f"\n⚠ Warning: Could not initialize VTS system: {e}")
@@ -294,6 +298,19 @@ def chat():
     
     # Get the user's last query
     user_query = get_last_user_query(messages)
+    
+    # Trigger gesture based on user input (non-blocking)
+    if VTS_ENABLED and vts_connector and vts_connector.is_connected and user_query:
+        try:
+            if not vts_gesture_animator:
+                vts_gesture_animator = get_gesture_animator(vts_connector)
+            # Run gesture detection in background (don't block chat)
+            asyncio.run_coroutine_threadsafe(
+                vts_gesture_animator.auto_trigger_from_user_input(user_query),
+                vts_loop
+            )
+        except Exception as e:
+            print(f"[VTS] Error triggering user gesture: {e}")
     
     # Check if user is asking about the creator
     if detect_creator_question(user_query):
@@ -964,6 +981,163 @@ def vts_play_lip_sync():
     except Exception as e:
         print(f"[VTS] Error playing lip sync: {e}")
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/vts/trigger_gesture', methods=['POST'])
+def vts_trigger_gesture():
+    """
+    Trigger a specific gesture animation in VTube Studio.
+    Supports: wave_hello, nod_head_agree, explain_arm_gesture, 
+              explain_hand_left, explain_hand_right, idle_waiting
+    """
+    global vts_gesture_animator
+    
+    if not VTS_ENABLED:
+        return jsonify({'error': 'VTS integration is disabled'}), 400
+    
+    if not vts_connector or not vts_connector.is_connected:
+        return jsonify({'error': 'VTS not connected'}), 400
+    
+    data = request.get_json()
+    gesture_name = data.get('gesture', '')
+    force = data.get('force', False)
+    
+    # Map gesture names to GestureType
+    gesture_map = {
+        'wave_hello': GestureType.WAVE_HELLO,
+        'nod_head_agree': GestureType.NOD_AGREE,
+        'explain_arm_gesture': GestureType.EXPLAIN_ARM,
+        'explain_hand_left': GestureType.EXPLAIN_LEFT,
+        'explain_hand_right': GestureType.EXPLAIN_RIGHT,
+        'idle_waiting': GestureType.IDLE_WAITING,
+    }
+    
+    gesture = gesture_map.get(gesture_name)
+    if not gesture:
+        return jsonify({
+            'error': f'Unknown gesture: {gesture_name}',
+            'available': list(gesture_map.keys())
+        }), 400
+    
+    try:
+        if not vts_gesture_animator:
+            vts_gesture_animator = get_gesture_animator(vts_connector)
+        
+        success = run_in_vts_loop(vts_gesture_animator.trigger_gesture(gesture, force=force))
+        
+        return jsonify({
+            'success': success,
+            'gesture': gesture_name,
+            'toggle_active': vts_gesture_animator.is_toggle_active(gesture) if gesture in [GestureType.EXPLAIN_ARM] else None
+        })
+        
+    except Exception as e:
+        print(f"[VTS] Error triggering gesture: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/vts/detect_and_trigger', methods=['POST'])
+def vts_detect_and_trigger():
+    """
+    Detect intent from text and trigger appropriate gesture.
+    Used for automatic gesture triggering based on user input.
+    """
+    global vts_gesture_animator
+    
+    if not VTS_ENABLED:
+        return jsonify({'error': 'VTS integration is disabled'}), 400
+    
+    if not vts_connector or not vts_connector.is_connected:
+        return jsonify({'error': 'VTS not connected'}), 400
+    
+    data = request.get_json()
+    text = data.get('text', '')
+    source = data.get('source', 'user')  # 'user' or 'ai'
+    
+    if not text:
+        return jsonify({'error': 'Text is required'}), 400
+    
+    try:
+        if not vts_gesture_animator:
+            vts_gesture_animator = get_gesture_animator(vts_connector)
+        
+        # Detect and trigger based on source
+        if source == 'user':
+            triggered_gesture = run_in_vts_loop(
+                vts_gesture_animator.auto_trigger_from_user_input(text)
+            )
+        else:
+            triggered_gesture = run_in_vts_loop(
+                vts_gesture_animator.auto_trigger_from_ai_response(text)
+            )
+        
+        return jsonify({
+            'success': triggered_gesture is not None,
+            'gesture': triggered_gesture.value if triggered_gesture else None,
+            'source': source,
+            'text_preview': text[:50] + '...' if len(text) > 50 else text
+        })
+        
+    except Exception as e:
+        print(f"[VTS] Error in detect and trigger: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/vts/disable_explain_gesture', methods=['POST'])
+def vts_disable_explain_gesture():
+    """
+    Disable the explain_arm_gesture toggle.
+    Should be called after AI finishes explaining.
+    """
+    global vts_gesture_animator
+    
+    if not VTS_ENABLED:
+        return jsonify({'error': 'VTS integration is disabled'}), 400
+    
+    if not vts_connector or not vts_connector.is_connected:
+        return jsonify({'error': 'VTS not connected'}), 400
+    
+    try:
+        if not vts_gesture_animator:
+            return jsonify({'success': True, 'message': 'Gesture animator not initialized'})
+        
+        success = run_in_vts_loop(vts_gesture_animator.disable_toggle(GestureType.EXPLAIN_ARM))
+        
+        return jsonify({
+            'success': success,
+            'message': 'Explain gesture disabled' if success else 'Failed to disable explain gesture'
+        })
+        
+    except Exception as e:
+        print(f"[VTS] Error disabling explain gesture: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/vts/gesture_status', methods=['GET'])
+def vts_gesture_status():
+    """Get current gesture animator status."""
+    global vts_gesture_animator
+    
+    if not VTS_ENABLED:
+        return jsonify({'enabled': False})
+    
+    if not vts_gesture_animator:
+        return jsonify({
+            'enabled': True,
+            'initialized': False,
+            'connected': vts_connector.is_connected if vts_connector else False
+        })
+    
+    return jsonify({
+        'enabled': True,
+        'initialized': True,
+        'connected': vts_connector.is_connected if vts_connector else False,
+        'active_toggles': [g.value for g in vts_gesture_animator.get_active_toggles()],
+        'available_gestures': [
+            'wave_hello', 'nod_head_agree', 'explain_arm_gesture',
+            'explain_hand_left', 'explain_hand_right', 'idle_waiting'
+        ]
+    })
 
 
 @app.errorhandler(404)

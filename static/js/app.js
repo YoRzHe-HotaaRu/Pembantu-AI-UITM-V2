@@ -340,21 +340,24 @@ function autoResizeTextarea() {
 async function sendMessage() {
     const content = elements.messageInput.value.trim();
     if (!content || state.isTyping) return;
-    
+
     // Add user message
     addMessage('user', content);
-    
+
+    // Trigger gesture based on user input (non-blocking)
+    detectAndTriggerGesture(content, 'user');
+
     // Clear input
     elements.messageInput.value = '';
     elements.charCount.textContent = '0 / 2000';
     elements.messageInput.style.height = 'auto';
-    
+
     // Save to state
     state.messages.push({ role: 'user', content });
-    
+
     // Show typing indicator with live reasoning
     showTypingIndicator();
-    
+
     // Send to API
     await sendToAPI();
 }
@@ -728,12 +731,15 @@ function finalizeResponse() {
     if (state.currentContent || state.currentReasoning) {
         const messageContent = state.currentContent || 'Tiada respons.';
         const reasoning = state.currentReasoning || null;
-        
+
         addMessage('assistant', messageContent, reasoning, state.ragUsed);
-        
+
+        // Trigger gesture based on AI response (for explanation gestures)
+        detectAndTriggerGesture(messageContent, 'ai');
+
         // Play TTS for the response
         playTTS(messageContent);
-        
+
         // Save to state
         state.messages.push({
             role: 'assistant',
@@ -741,9 +747,14 @@ function finalizeResponse() {
             reasoning: reasoning,
             ragUsed: state.ragUsed
         });
-        
+
         // Reset RAG flag for next message
         state.ragUsed = false;
+
+        // Disable explain gesture after response is complete (with delay)
+        setTimeout(() => {
+            disableExplainGesture();
+        }, 1000);
     }
 }
 
@@ -1330,6 +1341,113 @@ async function checkVTSStatus() {
         }
     } catch (error) {
         console.log('[VTS] Status check failed:', error);
+    }
+}
+
+// ========================================
+// GESTURE ANIMATION MODULE
+// ========================================
+
+/**
+ * Trigger a specific gesture animation in VTube Studio.
+ * Available gestures: wave_hello, nod_head_agree, explain_arm_gesture,
+ *                     explain_hand_left, explain_hand_right, idle_waiting
+ */
+async function triggerVTSGesture(gestureName, force = false) {
+    if (!state.vts.enabled || !state.vts.connected) {
+        console.log('[Gesture] VTS not connected, cannot trigger gesture');
+        return null;
+    }
+
+    try {
+        const response = await fetch('/vts/trigger_gesture', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ gesture: gestureName, force: force })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            console.log(`[Gesture] Triggered: ${gestureName}`);
+        } else {
+            console.log(`[Gesture] Failed to trigger: ${gestureName}`, data);
+        }
+
+        return data;
+    } catch (error) {
+        console.error('[Gesture] Error triggering gesture:', error);
+        return null;
+    }
+}
+
+/**
+ * Detect intent from text and trigger appropriate gesture automatically.
+ * Used when user sends a message.
+ */
+async function detectAndTriggerGesture(text, source = 'user') {
+    if (!state.vts.enabled || !state.vts.connected) {
+        return null;
+    }
+
+    try {
+        const response = await fetch('/vts/detect_and_trigger', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: text, source: source })
+        });
+
+        const data = await response.json();
+
+        if (data.success && data.gesture) {
+            console.log(`[Gesture] Auto-triggered: ${data.gesture} from ${source}`);
+        }
+
+        return data;
+    } catch (error) {
+        console.error('[Gesture] Error in detect and trigger:', error);
+        return null;
+    }
+}
+
+/**
+ * Disable the explain_arm_gesture toggle.
+ * Should be called after AI finishes explaining.
+ */
+async function disableExplainGesture() {
+    if (!state.vts.enabled || !state.vts.connected) {
+        return null;
+    }
+
+    try {
+        const response = await fetch('/vts/disable_explain_gesture', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            console.log('[Gesture] Explain gesture disabled');
+        }
+
+        return data;
+    } catch (error) {
+        console.error('[Gesture] Error disabling explain gesture:', error);
+        return null;
+    }
+}
+
+/**
+ * Get gesture animator status.
+ */
+async function getGestureStatus() {
+    try {
+        const response = await fetch('/vts/gesture_status');
+        return await response.json();
+    } catch (error) {
+        console.error('[Gesture] Error getting status:', error);
+        return null;
     }
 }
 
