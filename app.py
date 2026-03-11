@@ -299,18 +299,8 @@ def chat():
     # Get the user's last query
     user_query = get_last_user_query(messages)
     
-    # Trigger gesture based on user input (non-blocking)
-    if VTS_ENABLED and vts_connector and vts_connector.is_connected and user_query:
-        try:
-            if not vts_gesture_animator:
-                vts_gesture_animator = get_gesture_animator(vts_connector)
-            # Run gesture detection in background (don't block chat)
-            asyncio.run_coroutine_threadsafe(
-                vts_gesture_animator.auto_trigger_from_user_input(user_query),
-                vts_loop
-            )
-        except Exception as e:
-            print(f"[VTS] Error triggering user gesture: {e}")
+    # Note: Gesture triggering for user input is now handled by frontend
+    # when TTS starts playing, not here. This prevents redundant triggers.
     
     # Check if user is asking about the creator
     if detect_creator_question(user_query):

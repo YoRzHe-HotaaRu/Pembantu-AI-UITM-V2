@@ -18,6 +18,7 @@ const state = {
     ragUsed: false,
     structuredResponse: null, // For special responses like creator info
     ttsEnabled: localStorage.getItem('uitm-tts-enabled') !== 'false', // Default: true
+    lastUserMessage: null, // Store last user message for gesture triggering with TTS
 
     // Audio recording state (for OpenRouter multimodal)
     audio: {
@@ -344,8 +345,8 @@ async function sendMessage() {
     // Add user message
     addMessage('user', content);
 
-    // Trigger gesture based on user input (non-blocking)
-    detectAndTriggerGesture(content, 'user');
+    // Store user message for gesture triggering when TTS starts
+    state.lastUserMessage = content;
 
     // Clear input
     elements.messageInput.value = '';
@@ -1117,6 +1118,15 @@ async function playTTS(text) {
                 playLipSync(data.lip_sync, audio);
             }
             
+            // Trigger gesture based on user input right before audio plays
+            // This ensures the wave_hello gesture syncs with TTS audio playback
+            if (state.lastUserMessage && state.vts.enabled && state.vts.connected) {
+                // Fire-and-forget gesture trigger (non-blocking)
+                detectAndTriggerGesture(state.lastUserMessage, 'user');
+                // Clear the stored message to prevent duplicate triggers
+                state.lastUserMessage = null;
+            }
+            
             audio.play().catch(err => {
                 console.error('Audio playback failed:', err);
             });
@@ -1136,6 +1146,15 @@ async function playTTS(text) {
             
             const audioUrl = URL.createObjectURL(audioBlob);
             const audio = new Audio(audioUrl);
+            
+            // Trigger gesture based on user input right before audio plays
+            // This ensures the wave_hello gesture syncs with TTS audio playback
+            if (state.lastUserMessage && state.vts.enabled && state.vts.connected) {
+                // Fire-and-forget gesture trigger (non-blocking)
+                detectAndTriggerGesture(state.lastUserMessage, 'user');
+                // Clear the stored message to prevent duplicate triggers
+                state.lastUserMessage = null;
+            }
             
             audio.play().catch(err => {
                 console.error('Audio playback failed:', err);
