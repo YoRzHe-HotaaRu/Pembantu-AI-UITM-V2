@@ -96,30 +96,30 @@ const elements = {
     perfMonitorToggle: document.getElementById('perfMonitorToggle'),
     perfMonitorOverlay: document.getElementById('perfMonitorOverlay'),
     html: document.documentElement,
-    
+
     // Panels
     quickAccessPanel: document.getElementById('quickAccessPanel'),
     chatPanel: document.getElementById('chatPanel'),
     mobileToggle: document.getElementById('mobileToggle'),
     quickToggleBtn: document.getElementById('quickToggleBtn'),
     chatToggleBtn: document.getElementById('chatToggleBtn'),
-    
+
     // Chat
     messagesArea: document.getElementById('messagesArea'),
     messageInput: document.getElementById('messageInput'),
     sendButton: document.getElementById('sendButton'),
     charCount: document.getElementById('charCount'),
-    
+
     // Typing indicator
     typingIndicator: document.getElementById('typingIndicator'),
     liveReasoningContainer: document.getElementById('liveReasoningContainer'),
     liveReasoningToggle: document.getElementById('liveReasoningToggle'),
     liveReasoningContent: document.getElementById('liveReasoningContent'),
     liveReasoningText: document.getElementById('liveReasoningText'),
-    
+
     // Quick access items
     quickItems: document.querySelectorAll('.quick-item'),
-    
+
     // Welcome timestamp
     welcomeTime: document.getElementById('welcomeTime'),
 
@@ -142,19 +142,19 @@ document.addEventListener('DOMContentLoaded', () => {
 function initializeApp() {
     // Set theme
     setTheme(state.theme);
-    
+
     // Set welcome message timestamp
     elements.welcomeTime.textContent = formatTime(new Date());
-    
+
     // Initialize Lucide icons
     lucide.createIcons();
-    
+
     // Setup event listeners
     setupEventListeners();
-    
+
     // Check screen size for mobile layout
     handleResize();
-    
+
     // Focus input on desktop
     if (window.innerWidth >= 1024) {
         elements.messageInput.focus();
@@ -199,16 +199,16 @@ function setupEventListeners() {
     // Microphone selection
     elements.microphoneSelect.addEventListener('change', handleMicrophoneSelect);
     elements.testMicBtn.addEventListener('click', testMicrophone);
-    
+
     // Mobile panel toggles
     elements.quickToggleBtn.addEventListener('click', () => switchPanel('quick'));
     elements.chatToggleBtn.addEventListener('click', () => switchPanel('chat'));
-    
+
     // Chat input
     elements.messageInput.addEventListener('input', handleInput);
     elements.messageInput.addEventListener('keydown', handleKeyDown);
     elements.sendButton.addEventListener('click', sendMessage);
-    
+
     // Quick access items
     elements.quickItems.forEach(item => {
         item.addEventListener('click', () => {
@@ -216,7 +216,7 @@ function setupEventListeners() {
             handleQuickQuestion(question);
         });
     });
-    
+
     // Live reasoning toggle during typing
     elements.liveReasoningToggle.addEventListener('click', () => {
         elements.liveReasoningContainer.classList.toggle('minimized');
@@ -231,10 +231,10 @@ function setupEventListeners() {
             startAudioRecording();
         }
     });
-    
+
     // Window resize
     window.addEventListener('resize', handleResize);
-    
+
     // Auto-resize textarea
     elements.messageInput.addEventListener('input', autoResizeTextarea);
 }
@@ -260,11 +260,11 @@ function toggleTheme() {
 
 function switchPanel(panel) {
     state.currentPanel = panel;
-    
+
     // Update toggle buttons
     elements.quickToggleBtn.classList.toggle('active', panel === 'quick');
     elements.chatToggleBtn.classList.toggle('active', panel === 'chat');
-    
+
     // Show/hide panels (mobile/tablet only)
     if (window.innerWidth < 1024) {
         if (panel === 'quick') {
@@ -281,12 +281,12 @@ function switchPanel(panel) {
 
 function handleResize() {
     const isDesktop = window.innerWidth >= 1024;
-    
+
     if (isDesktop) {
         // Desktop: Show both panels, remove mobile visibility classes
         elements.quickAccessPanel.classList.remove('hidden');
         elements.chatPanel.classList.remove('visible');
-        
+
         // Focus input on desktop
         if (document.activeElement !== elements.messageInput) {
             elements.messageInput.focus();
@@ -295,13 +295,13 @@ function handleResize() {
         // Mobile/Tablet: Apply current panel state
         switchPanel(state.currentPanel);
     }
-    
+
     // Update CSS custom property for viewport height (for mobile address bar handling)
     document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
-    
+
     // Dispatch custom event for components that need to know about resize
-    window.dispatchEvent(new CustomEvent('app:resize', { 
-        detail: { isDesktop, width: window.innerWidth } 
+    window.dispatchEvent(new CustomEvent('app:resize', {
+        detail: { isDesktop, width: window.innerWidth }
     }));
 }
 
@@ -312,7 +312,7 @@ function handleResize() {
 function handleInput() {
     const length = elements.messageInput.value.length;
     elements.charCount.textContent = `${length} / 2000`;
-    
+
     // Update char count color
     if (length > 1800) {
         elements.charCount.style.color = 'var(--accent-primary)';
@@ -367,12 +367,12 @@ function handleQuickQuestion(question) {
     // Set input value
     elements.messageInput.value = question;
     handleInput();
-    
+
     // Switch to chat panel on mobile
     if (window.innerWidth < 1024) {
         switchPanel('chat');
     }
-    
+
     // Auto-send after short delay
     setTimeout(() => sendMessage(), 300);
 }
@@ -380,10 +380,10 @@ function handleQuickQuestion(question) {
 function addMessage(role, content, reasoning = null, ragUsed = false, imageData = null, isVoice = false) {
     const messageDiv = document.createElement('div');
     messageDiv.className = `message ${role}-message`;
-    
+
     const timestamp = formatTime(new Date());
     const isAI = role === 'assistant';
-    
+
     // Build image HTML if present
     let imageHTML = '';
     if (imageData) {
@@ -395,7 +395,7 @@ function addMessage(role, content, reasoning = null, ragUsed = false, imageData 
                 <span>${link.text}</span>
             </a>
         `).join('') : '';
-        
+
         imageHTML = `
             <div class="creator-card">
                 <div class="creator-image-wrapper">
@@ -411,7 +411,7 @@ function addMessage(role, content, reasoning = null, ragUsed = false, imageData 
             </div>
         `;
     }
-    
+
     // Build voice visualizer HTML if it's a voice message
     let contentHTML = '';
     if (isVoice) {
@@ -430,7 +430,7 @@ function addMessage(role, content, reasoning = null, ragUsed = false, imageData 
     } else {
         contentHTML = formatMessageContent(content);
     }
-    
+
     messageDiv.innerHTML = `
         <div class="message-avatar">
             ${isAI ? '<img src="/static/assets/bot-avatar.svg" alt="AI Avatar" class="avatar-svg" />' : '<img src="/static/assets/user-avatar.svg" alt="User Avatar" class="avatar-svg" />'}
@@ -450,13 +450,13 @@ function addMessage(role, content, reasoning = null, ragUsed = false, imageData 
             ${reasoning ? createReasoningHTML(reasoning) : ''}
         </div>
     `;
-    
+
     elements.messagesArea.appendChild(messageDiv);
     lucide.createIcons();
-    
+
     // Scroll to bottom
     scrollToBottom();
-    
+
     return messageDiv;
 }
 
@@ -496,15 +496,15 @@ function toggleReasoning(id) {
     if (container) {
         container.classList.toggle('minimized');
         container.classList.toggle('expanded');
-        
+
         // Update button text
         const button = container.querySelector('.reasoning-toggle span');
         if (button) {
-            button.textContent = container.classList.contains('expanded') 
-                ? 'Sembunyikan Penjelasan' 
+            button.textContent = container.classList.contains('expanded')
+                ? 'Sembunyikan Penjelasan'
                 : 'Tunjuk Penjelasan AI';
         }
-        
+
         // Re-render icons
         lucide.createIcons();
     }
@@ -517,9 +517,9 @@ function escapeHtml(text) {
 }
 
 function formatTime(date) {
-    return date.toLocaleTimeString('ms-MY', { 
-        hour: '2-digit', 
-        minute: '2-digit' 
+    return date.toLocaleTimeString('ms-MY', {
+        hour: '2-digit',
+        minute: '2-digit'
     });
 }
 
@@ -535,15 +535,15 @@ function showTypingIndicator() {
     state.isTyping = true;
     state.currentReasoning = '';
     state.currentContent = '';
-    
+
     // Show live reasoning expanded by default
     elements.liveReasoningContainer.classList.add('expanded');
     elements.liveReasoningContainer.classList.remove('minimized');
     elements.liveReasoningText.textContent = '';
-    
+
     elements.typingIndicator.style.display = 'block';
     elements.sendButton.disabled = true;
-    
+
     scrollToBottom();
 }
 
@@ -551,7 +551,7 @@ function hideTypingIndicator() {
     state.isTyping = false;
     elements.typingIndicator.style.display = 'none';
     elements.sendButton.disabled = false;
-    
+
     // Focus input
     elements.messageInput.focus();
 }
@@ -588,10 +588,10 @@ async function sendToAPI() {
         state.currentContent = '';
         state.ragUsed = false;
         currentTokenCount = 0;
-        
+
         // Start LLM timing
         startLLMTiming();
-        
+
         const response = await fetch('/chat', {
             method: 'POST',
             headers: {
@@ -603,38 +603,38 @@ async function sendToAPI() {
                 stream: true
             })
         });
-        
+
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
-        
+
         // Handle streaming response
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
-        
+
         let buffer = '';
-        
+
         while (true) {
             const { done, value } = await reader.read();
-            
+
             if (done) break;
-            
+
             buffer += decoder.decode(value, { stream: true });
-            
+
             // Process SSE data
             const lines = buffer.split('\n');
             buffer = lines.pop(); // Keep incomplete line in buffer
-            
+
             for (const line of lines) {
                 if (line.startsWith('data: ')) {
                     const data = line.slice(6);
-                    
+
                     if (data === '[DONE]') {
                         // Stream complete
                         finalizeResponse();
                         return;
                     }
-                    
+
                     try {
                         const parsed = JSON.parse(data);
                         processStreamData(parsed);
@@ -644,10 +644,10 @@ async function sendToAPI() {
                 }
             }
         }
-        
+
         // Finalize any remaining content
         finalizeResponse();
-        
+
     } catch (error) {
         console.error('API Error:', error);
         hideTypingIndicator();
@@ -661,22 +661,22 @@ function processStreamData(data) {
         state.ragUsed = data.rag_metadata.rag_used || false;
         return;
     }
-    
+
     if (!data.choices || !data.choices[0]) return;
-    
+
     const delta = data.choices[0].delta;
     if (!delta) return;
-    
+
     // Handle reasoning (thinking process)
     if (delta.reasoning) {
         updateLiveReasoning(state.currentReasoning + delta.reasoning);
     }
-    
+
     // Handle content (actual response)
     if (delta.content) {
         // Count tokens (approximate: 1 token ≈ 4 chars for English, 1-2 chars for Malay)
         currentTokenCount += Math.ceil(delta.content.length / 3);
-        
+
         // Check if this is a special structured response (e.g., creator info)
         try {
             const parsed = JSON.parse(delta.content);
@@ -694,25 +694,25 @@ function processStreamData(data) {
 
 function finalizeResponse() {
     hideTypingIndicator();
-    
+
     // End LLM timing with token count
     endLLMTiming(currentTokenCount);
-    
+
     // Handle structured response (e.g., creator info with image)
     if (state.structuredResponse) {
         const response = state.structuredResponse;
-        
+
         // Combine image data with links
         const imageData = {
             ...response.image,
             links: response.links || []
         };
-        
+
         addMessage('assistant', response.content, null, false, imageData);
-        
+
         // Play TTS for the response
         playTTS(response.content);
-        
+
         // Save to state
         state.messages.push({
             role: 'assistant',
@@ -721,13 +721,13 @@ function finalizeResponse() {
             ragUsed: false,
             image: imageData
         });
-        
+
         // Reset structured response
         state.structuredResponse = null;
         state.ragUsed = false;
         return;
     }
-    
+
     // Add the complete AI message
     if (state.currentContent || state.currentReasoning) {
         const messageContent = state.currentContent || 'Tiada respons.';
@@ -735,10 +735,7 @@ function finalizeResponse() {
 
         addMessage('assistant', messageContent, reasoning, state.ragUsed);
 
-        // Trigger gesture based on AI response (for explanation gestures)
-        detectAndTriggerGesture(messageContent, 'ai');
-
-        // Play TTS for the response
+        // Play TTS for the response (pass text for gesture animation)
         playTTS(messageContent);
 
         // Save to state
@@ -830,7 +827,7 @@ function updateThemeButtons() {
 
 // Override setTheme to also update buttons
 const originalSetTheme = setTheme;
-setTheme = function(theme) {
+setTheme = function (theme) {
     originalSetTheme(theme);
     updateThemeButtons();
 };
@@ -842,7 +839,7 @@ setTheme = function(theme) {
 function initializePerfMonitor() {
     // Show/hide overlay based on saved preference
     updatePerfMonitorVisibility();
-    
+
     // Start periodic VTS status updates for latency tracking
     if (state.perfMonitor.enabled) {
         startVTSPerfTracking();
@@ -859,7 +856,7 @@ function handlePerfMonitorToggle(e) {
     state.perfMonitor.enabled = e.target.checked;
     localStorage.setItem('uitm-perf-monitor-enabled', state.perfMonitor.enabled);
     updatePerfMonitorVisibility();
-    
+
     if (state.perfMonitor.enabled) {
         startVTSPerfTracking();
     }
@@ -880,17 +877,17 @@ function startLLMTiming() {
 // End tracking LLM request timing
 function endLLMTiming(tokenCount = null) {
     if (!state.perfMonitor.enabled || !state.perfMonitor.timing.llmStart) return;
-    
+
     const endTime = performance.now();
     const duration = endTime - state.perfMonitor.timing.llmStart;
-    
+
     state.perfMonitor.metrics.llm.responseTime = duration;
-    
+
     if (tokenCount && duration > 0) {
         state.perfMonitor.metrics.llm.tokensPerSec = Math.round((tokenCount / duration) * 1000);
         state.perfMonitor.metrics.llm.totalTokens = tokenCount;
     }
-    
+
     updatePerfMonitorDisplay();
     state.perfMonitor.timing.llmStart = null;
 }
@@ -904,22 +901,22 @@ function startTTSTiming() {
 // End tracking TTS generation timing
 function endTTSTiming(audioSize = null, lipSyncFrames = null, cacheHit = false) {
     if (!state.perfMonitor.enabled || !state.perfMonitor.timing.ttsStart) return;
-    
+
     const endTime = performance.now();
     const duration = endTime - state.perfMonitor.timing.ttsStart;
-    
+
     state.perfMonitor.metrics.tts.genTime = duration;
-    
+
     if (audioSize !== null) {
         state.perfMonitor.metrics.tts.audioSize = audioSize;
     }
-    
+
     if (lipSyncFrames !== null) {
         state.perfMonitor.metrics.tts.lipSyncFrames = lipSyncFrames;
     }
-    
+
     state.perfMonitor.metrics.tts.cacheStatus = cacheHit ? 'Cache' : 'Live';
-    
+
     updatePerfMonitorDisplay();
     state.perfMonitor.timing.ttsStart = null;
 }
@@ -933,12 +930,12 @@ function startServerTiming() {
 // End tracking server request timing
 function endServerTiming() {
     if (!state.perfMonitor.enabled || !state.perfMonitor.timing.serverStart) return;
-    
+
     const endTime = performance.now();
     const duration = endTime - state.perfMonitor.timing.serverStart;
-    
+
     state.perfMonitor.metrics.network.serverResponseTime = duration;
-    
+
     updatePerfMonitorDisplay();
     state.perfMonitor.timing.serverStart = null;
 }
@@ -946,13 +943,13 @@ function endServerTiming() {
 // Update VTS performance metrics
 function updateVTSPerfMetrics(status, latency = null) {
     if (!state.perfMonitor.enabled) return;
-    
+
     state.perfMonitor.metrics.vts.connectionStatus = status ? 'Disambung' : 'Tidak disambung';
-    
+
     if (latency !== null) {
         state.perfMonitor.metrics.vts.latency = latency;
     }
-    
+
     updatePerfMonitorDisplay();
 }
 
@@ -960,7 +957,7 @@ function updateVTSPerfMetrics(status, latency = null) {
 function startVTSPerfTracking() {
     // Update VTS status immediately
     updateVTSPerfMetrics(state.vts.connected);
-    
+
     // Update every 5 seconds while monitor is enabled
     setInterval(() => {
         if (state.perfMonitor.enabled) {
@@ -972,14 +969,14 @@ function startVTSPerfTracking() {
 // Update the performance monitor display
 function updatePerfMonitorDisplay() {
     if (!state.perfMonitor.enabled) return;
-    
+
     const metrics = state.perfMonitor.metrics;
-    
+
     // LLM metrics
     const llmResponseTimeEl = document.getElementById('llmResponseTime');
     const llmTokensPerSecEl = document.getElementById('llmTokensPerSec');
     const llmTotalTokensEl = document.getElementById('llmTotalTokens');
-    
+
     if (llmResponseTimeEl && metrics.llm.responseTime !== null) {
         llmResponseTimeEl.textContent = `${Math.round(metrics.llm.responseTime)}ms`;
     }
@@ -989,13 +986,13 @@ function updatePerfMonitorDisplay() {
     if (llmTotalTokensEl && metrics.llm.totalTokens !== null) {
         llmTotalTokensEl.textContent = metrics.llm.totalTokens.toLocaleString();
     }
-    
+
     // TTS metrics
     const ttsGenTimeEl = document.getElementById('ttsGenTime');
     const ttsAudioSizeEl = document.getElementById('ttsAudioSize');
     const ttsLipSyncFramesEl = document.getElementById('ttsLipSyncFrames');
     const ttsCacheStatusEl = document.getElementById('ttsCacheStatus');
-    
+
     if (ttsGenTimeEl && metrics.tts.genTime !== null) {
         ttsGenTimeEl.textContent = `${Math.round(metrics.tts.genTime)}ms`;
     }
@@ -1010,11 +1007,11 @@ function updatePerfMonitorDisplay() {
         ttsCacheStatusEl.textContent = metrics.tts.cacheStatus;
         ttsCacheStatusEl.className = 'perf-value ' + (metrics.tts.cacheStatus === 'Cache' ? 'cache-hit' : 'cache-miss');
     }
-    
+
     // VTS metrics
     const vtsStatusEl = document.getElementById('vtsConnectionStatus');
     const vtsLatencyEl = document.getElementById('vtsLatency');
-    
+
     if (vtsStatusEl) {
         vtsStatusEl.textContent = metrics.vts.connectionStatus;
         vtsStatusEl.className = 'perf-value ' + (state.vts.connected ? 'connected' : 'disconnected');
@@ -1022,7 +1019,7 @@ function updatePerfMonitorDisplay() {
     if (vtsLatencyEl && metrics.vts.latency !== null) {
         vtsLatencyEl.textContent = `${Math.round(metrics.vts.latency)}ms`;
     }
-    
+
     // Network metrics
     const serverResponseTimeEl = document.getElementById('serverResponseTime');
     if (serverResponseTimeEl && metrics.network.serverResponseTime !== null) {
@@ -1037,13 +1034,13 @@ function updatePerfMonitorDisplay() {
 async function playTTS(text) {
     // Skip if TTS is disabled
     if (!state.ttsEnabled) return;
-    
+
     // Skip if no text
     if (!text || text.trim().length === 0) return;
-    
+
     // Start TTS timing
     startTTSTiming();
-    
+
     // Clean text for TTS (remove markdown formatting and URLs)
     const cleanText = text
         .replace(/\*\*(.*?)\*\*/g, '$1')
@@ -1064,11 +1061,11 @@ async function playTTS(text) {
         .replace(/\s+/g, ' ')
         .trim()
         .substring(0, 4000); // Limit to 4000 chars
-    
+
     try {
         // Check if VTS is enabled and connected
         const includeLipSync = state.vts.enabled && state.vts.connected;
-        
+
         const response = await fetch('/tts', {
             method: 'POST',
             headers: {
@@ -1079,45 +1076,45 @@ async function playTTS(text) {
                 include_lip_sync: includeLipSync
             })
         });
-        
+
         if (!response.ok) {
             console.error('TTS request failed:', response.status);
             return;
         }
-        
+
         // Check if response is JSON (with lip sync) or audio blob
         const contentType = response.headers.get('content-type');
-        
+
         if (contentType && contentType.includes('application/json')) {
             // Response includes lip sync data
             const data = await response.json();
-            
+
             // End TTS timing with metrics
             const audioSize = data.audio ? Math.ceil(data.audio.length * 0.75) : 0; // Approximate base64 to bytes
             const lipSyncFrames = data.lip_sync ? data.lip_sync.length : 0;
             const cacheHit = data.cached === true;
             endTTSTiming(audioSize, lipSyncFrames, cacheHit);
-            
+
             // Decode base64 audio
             const audioBytes = atob(data.audio);
             const audioArray = new Uint8Array(audioBytes.length);
             for (let i = 0; i < audioBytes.length; i++) {
                 audioArray[i] = audioBytes.charCodeAt(i);
             }
-            
+
             const audioBlob = new Blob([audioArray], { type: 'audio/mpeg' });
             const audioUrl = URL.createObjectURL(audioBlob);
             const audio = new Audio(audioUrl);
-            
+
             // Store lip sync data
             if (data.lip_sync && data.lip_sync.length > 0) {
                 state.vts.lipSyncData = data.lip_sync;
                 state.vts.currentAudio = audio;
-                
-                // Start lip sync playback
-                playLipSync(data.lip_sync, audio);
+
+                // Start lip sync playback (pass text for explain gesture decision)
+                playLipSync(data.lip_sync, audio, cleanText);
             }
-            
+
             // Trigger gesture based on user input right before audio plays
             // This ensures the wave_hello gesture syncs with TTS audio playback
             if (state.lastUserMessage && state.vts.enabled && state.vts.connected) {
@@ -1126,11 +1123,11 @@ async function playTTS(text) {
                 // Clear the stored message to prevent duplicate triggers
                 state.lastUserMessage = null;
             }
-            
+
             audio.play().catch(err => {
                 console.error('Audio playback failed:', err);
             });
-            
+
             // Cleanup URL after playback
             audio.onended = () => {
                 URL.revokeObjectURL(audioUrl);
@@ -1140,13 +1137,13 @@ async function playTTS(text) {
         } else {
             // Response is audio only
             const audioBlob = await response.blob();
-            
+
             // End TTS timing with audio size
             endTTSTiming(audioBlob.size, 0, false);
-            
+
             const audioUrl = URL.createObjectURL(audioBlob);
             const audio = new Audio(audioUrl);
-            
+
             // Trigger gesture based on user input right before audio plays
             // This ensures the wave_hello gesture syncs with TTS audio playback
             if (state.lastUserMessage && state.vts.enabled && state.vts.connected) {
@@ -1155,17 +1152,17 @@ async function playTTS(text) {
                 // Clear the stored message to prevent duplicate triggers
                 state.lastUserMessage = null;
             }
-            
+
             audio.play().catch(err => {
                 console.error('Audio playback failed:', err);
             });
-            
+
             // Cleanup URL after playback
             audio.onended = () => {
                 URL.revokeObjectURL(audioUrl);
             };
         }
-        
+
     } catch (error) {
         console.error('TTS error:', error);
     }
@@ -1180,13 +1177,13 @@ async function initializeVTS() {
     if (!elements.vtsSettingsSection) {
         return;
     }
-    
+
     // Update toggle state
     if (elements.vtsToggle) {
         elements.vtsToggle.checked = state.vts.enabled;
         elements.vtsToggle.addEventListener('change', handleVTSToggle);
     }
-    
+
     // If VTS was enabled, try to connect
     if (state.vts.enabled) {
         await connectVTS();
@@ -1197,7 +1194,7 @@ async function handleVTSToggle(event) {
     const enabled = event.target.checked;
     state.vts.enabled = enabled;
     localStorage.setItem('uitm-vts-enabled', enabled);
-    
+
     if (enabled) {
         await connectVTS();
     } else {
@@ -1207,10 +1204,10 @@ async function handleVTSToggle(event) {
 
 async function connectVTS() {
     if (state.vts.connecting || state.vts.connected) return;
-    
+
     state.vts.connecting = true;
     updateVTSStatus('connecting');
-    
+
     try {
         const response = await fetch('/vts/connect', {
             method: 'POST',
@@ -1218,9 +1215,9 @@ async function connectVTS() {
                 'Content-Type': 'application/json'
             }
         });
-        
+
         const data = await response.json();
-        
+
         if (data.success) {
             state.vts.connected = true;
             updateVTSStatus('connected');
@@ -1241,7 +1238,7 @@ async function connectVTS() {
 
 async function disconnectVTS() {
     if (!state.vts.connected) return;
-    
+
     try {
         await fetch('/vts/disconnect', {
             method: 'POST',
@@ -1249,7 +1246,7 @@ async function disconnectVTS() {
                 'Content-Type': 'application/json'
             }
         });
-        
+
         state.vts.connected = false;
         updateVTSStatus('disconnected');
         console.log('[VTS] Disconnected from VTube Studio');
@@ -1260,15 +1257,15 @@ async function disconnectVTS() {
 
 function updateVTSStatus(status, message = null) {
     if (!elements.vtsStatus) return;
-    
+
     const indicator = elements.vtsStatus.querySelector('.status-indicator');
     const text = elements.vtsStatus.querySelector('.status-text');
-    
+
     if (!indicator || !text) return;
-    
+
     // Remove all status classes
     indicator.classList.remove('connected', 'disconnected', 'connecting', 'error');
-    
+
     switch (status) {
         case 'connected':
             indicator.classList.add('connected');
@@ -1288,10 +1285,13 @@ function updateVTSStatus(status, message = null) {
     }
 }
 
-async function playLipSync(lipSyncData, audio) {
+async function playLipSync(lipSyncData, audio, text = '') {
     if (!lipSyncData || lipSyncData.length === 0) return;
     if (!state.vts.connected) return;
-    
+
+    // Estimate token count from text (rough: ~4 chars per token for Malay/English)
+    const estimatedTokens = text ? Math.ceil(text.length / 4) : 0;
+
     // Send the entire lip sync data to backend to play
     // This ensures proper timing and synchronization
     try {
@@ -1300,7 +1300,11 @@ async function playLipSync(lipSyncData, audio) {
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ lip_sync: lipSyncData })
+            body: JSON.stringify({
+                lip_sync: lipSyncData,
+                text: text,
+                token_count: estimatedTokens
+            })
         });
     } catch (error) {
         console.error('[VTS] Error playing lip sync:', error);
@@ -1310,7 +1314,7 @@ async function playLipSync(lipSyncData, audio) {
 async function sendVTSMouthValue(value) {
     // Send individual mouth value to VTS via backend
     if (!state.vts.connected) return;
-    
+
     try {
         await fetch('/vts/set_mouth', {
             method: 'POST',
@@ -1327,27 +1331,27 @@ async function sendVTSMouthValue(value) {
 // Check VTS status on page load
 async function checkVTSStatus() {
     if (!elements.vtsSettingsSection) return;
-    
+
     try {
         const response = await fetch('/vts/status');
         const data = await response.json();
-        
+
         if (data.enabled) {
             // Backend has VTS enabled, sync frontend state
             // If user previously enabled VTS in frontend, keep that preference
             const userEnabledVTS = localStorage.getItem('uitm-vts-enabled') === 'true';
-            
+
             // Update toggle to reflect user preference
             if (elements.vtsToggle) {
                 elements.vtsToggle.checked = userEnabledVTS;
             }
-            
+
             // Update state
             state.vts.enabled = userEnabledVTS;
             state.vts.connected = data.connected;
-            
+
             updateVTSStatus(data.connected ? 'connected' : 'disconnected');
-            
+
             // If user had VTS enabled, try to connect
             if (userEnabledVTS && !data.connected) {
                 connectVTS();

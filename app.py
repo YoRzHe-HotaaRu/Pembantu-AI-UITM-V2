@@ -935,11 +935,12 @@ def vts_set_mouth():
 @app.route('/vts/play_lip_sync', methods=['POST'])
 def vts_play_lip_sync():
     """
-    Play lip sync data directly on VTS with gesture control
-    Frontend sends the lip sync data and backend plays it in real-time
-    Includes idle animation pause/resume and talking gestures
+    Play lip sync data directly on VTS with gesture control.
+    Frontend sends the lip sync data and backend plays it in real-time.
+    Includes idle animation pause/resume, talking gestures, and
+    automatic explain gesture triggering for longer responses (>60 tokens).
     """
-    global vts_idle_animator, vts_gesture_controller
+    global vts_idle_animator, vts_gesture_controller, vts_gesture_animator
     
     if not VTS_ENABLED:
         return jsonify({'error': 'VTS integration is disabled'}), 400
@@ -949,7 +950,8 @@ def vts_play_lip_sync():
     
     data = request.get_json()
     lip_sync_data = data.get('lip_sync', [])
-    text = data.get('text', '')  # Optional text for emotion detection
+    text = data.get('text', '')  # Text for emotion detection
+    token_count = data.get('token_count', 0)  # Estimated token count
     
     if not lip_sync_data:
         return jsonify({'success': True, 'message': 'No lip sync data'})
@@ -963,13 +965,63 @@ def vts_play_lip_sync():
         if vts_idle_animator or vts_gesture_controller:
             player.set_liveliness_controllers(vts_idle_animator, vts_gesture_controller)
         
-        # Play lip sync with text for emotion-based gestures
-        run_in_vts_loop(player.play_lip_sync(vts_connector, lip_sync_data, text=text))
+        # --- Explain gesture automation (>60 tokens) ---
+        explain_gesture_active = False
+        if token_count > 60 and vts_connector.is_connected:
+            try:
+                if not vts_gesture_animator:
+                    vts_gesture_animator = get_gesture_animator(vts_connector)
+                
+                import random
+                import time
+                
+                # 1. Play explain_hand_left or explain_hand_right (one-shot)
+                hand_gesture = random.choice([GestureType.EXPLAIN_LEFT, GestureType.EXPLAIN_RIGHT])
+                run_in_vts_loop(vts_gesture_animator.trigger_gesture(hand_gesture, force=True))
+                print(f"[VTS] Triggered explain hand: {hand_gesture.value} (tokens={token_count})")
+                
+                # Wait 1s for the hand animation to play out
+                time.sleep(1.0)
+                
+                # 2. Toggle explain_arm_gesture ON (sustained pose while talking)
+                run_in_vts_loop(vts_gesture_animator.trigger_gesture(GestureType.EXPLAIN_ARM, force=True))
+                explain_gesture_active = vts_gesture_animator.is_toggle_active(GestureType.EXPLAIN_ARM)
+                print(f"[VTS] Explain arm gesture toggled ON: {explain_gesture_active}")
+                
+            except Exception as e:
+                print(f"[VTS] Error triggering explain gestures: {e}")
+                import traceback
+                traceback.print_exc()
         
-        return jsonify({'success': True})
+        # Play lip sync with text for emotion-based gestures
+        # Use longer timeout for lip sync since long responses can exceed 30s
+        try:
+            if vts_loop is None or not vts_loop.is_running():
+                raise RuntimeError("VTS loop not running")
+            future = asyncio.run_coroutine_threadsafe(
+                player.play_lip_sync(vts_connector, lip_sync_data, text=text),
+                vts_loop
+            )
+            future.result(timeout=120)  # 2 minute timeout for long responses
+        except Exception as lip_err:
+            print(f"[VTS] Lip sync playback issue: {lip_err}")
+        finally:
+            # --- ALWAYS disable explain gesture after speech ends ---
+            if explain_gesture_active and vts_gesture_animator:
+                try:
+                    import time
+                    time.sleep(0.3)
+                    run_in_vts_loop(vts_gesture_animator.disable_toggle(GestureType.EXPLAIN_ARM))
+                    print("[VTS] Explain arm gesture toggled OFF (speech ended)")
+                except Exception as e:
+                    print(f"[VTS] Error disabling explain gesture: {e}")
+        
+        return jsonify({'success': True, 'explain_triggered': explain_gesture_active})
         
     except Exception as e:
         print(f"[VTS] Error playing lip sync: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 

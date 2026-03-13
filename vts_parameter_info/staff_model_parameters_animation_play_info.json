@@ -1,0 +1,77 @@
+[
+    {
+        "name": "animation_1",
+        "animation_variable": "wave_hello",
+        "action": {
+            "type": "Play Animation (motion3)",
+            "file": "M02.motion3.json"
+        },
+        "key_combination": "Record",
+        "gesture_trigger": "Gesture",
+        "settings": {
+            "fade_for_sec": 0.5,
+            "stop_after_sec": 5,
+            "stop_on_last_frame": true
+        }
+    },
+    {
+        "name": "animation_2",
+        "animation_variable": "nod_head_agree",
+        "action": {
+            "type": "Play Animation (motion3)",
+            "file": "M07.motion3.json"
+        },
+        "key_combination": "Record",
+        "gesture_trigger": "Gesture",
+        "settings": {
+            "fade_for_sec": 0.5,
+            "stop_after_sec": 10,
+            "stop_on_last_frame": true
+        }
+    },
+    {
+        "name": "animation_3",
+        "animation_variable": "explain_arm_gesture",
+        "action": {
+            "type": "Play Animation (motion3)",
+            "file": "M08.motion3.json"
+        },
+        "key_combination": "Record",
+        "gesture_trigger": "Gesture",
+        "settings": {
+            "fade_for_sec": 0.5,
+            "stop_after_sec": 10,
+            "stop_on_last_frame": true
+        }
+    },
+    {
+        "name": "animation_5",
+        "animation_variable": "explain_hand_right",
+        "action": {
+            "type": "Play Animation (motion3)",
+            "file": "Not Specified in Image"
+        },
+        "key_combination": "Record",
+        "gesture_trigger": "Gesture",
+        "settings": {
+            "fade_for_sec": 0.5,
+            "stop_after_sec": 10,
+            "stop_on_last_frame": false
+        }
+    },
+    {
+        "name": "animation_6",
+        "animation_variable": "idle_waiting",
+        "action": {
+            "type": "Play Animation (motion3)",
+            "file": "Not Specified in Image"
+        },
+        "key_combination": "Record",
+        "gesture_trigger": "Gesture",
+        "settings": {
+            "fade_for_sec": 0.5,
+            "stop_after_sec": 10,
+            "stop_on_last_frame": false
+        }
+    }
+]
