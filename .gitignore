@@ -173,3 +173,8 @@ pids
 plans/
 
 .vts_token
+
+
+# Documentation
+CLAUDE.md
+.mcp.json
