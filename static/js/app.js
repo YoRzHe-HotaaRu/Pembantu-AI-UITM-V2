@@ -1264,21 +1264,12 @@ async function playStartupAudio() {
 
         console.log(`[Startup Audio] Loaded ${data.duration.toFixed(2)}s audio, ${data.lip_sync.length} lip-sync frames`);
 
-        // Step 1: Trigger wave_hello gesture
+        // Step 1: Trigger wave_hello gesture + start audio/lip-sync together
         if (state.vts.enabled && state.vts.connected) {
-            await triggerVTSGesture('wave_hello').catch(err => {
+            triggerVTSGesture('wave_hello').catch(err => {
                 console.error('[Startup Audio] Wave gesture failed:', err);
             });
-            console.log('[Startup Audio] Wave hello triggered');
-
-            // Wait for wave animation to complete (~1.5 seconds)
-            await new Promise(resolve => setTimeout(resolve, 1500));
-
-            // Step 2: Toggle explain_arm_gesture ON
-            await triggerVTSGesture('explain_arm_gesture').catch(err => {
-                console.error('[Startup Audio] Explain arm toggle failed:', err);
-            });
-            console.log('[Startup Audio] Explain arm gesture ON');
+            console.log('[Startup Audio] Wave hello started');
         }
 
         // Store lip sync data and start playback
@@ -1290,7 +1281,6 @@ async function playStartupAudio() {
             playLipSync(data.lip_sync, audio, '');
 
             // Wait a small delay for backend to receive and start lip-sync
-            // This compensates for network latency before starting audio
             await new Promise(resolve => setTimeout(resolve, 80));
 
             console.log('[Startup Audio] Lip-sync started, playing audio now');
@@ -1300,6 +1290,17 @@ async function playStartupAudio() {
         audio.play().catch(err => {
             console.error('[Startup Audio] Playback failed:', err);
         });
+
+        // Step 2: After wave completes (~1.5s), toggle explain_arm_gesture ON
+        // Use force: true to bypass cooldown
+        if (state.vts.enabled && state.vts.connected) {
+            setTimeout(async () => {
+                await triggerVTSGesture('explain_arm_gesture', true).catch(err => {
+                    console.error('[Startup Audio] Explain arm toggle failed:', err);
+                });
+                console.log('[Startup Audio] Explain arm gesture ON');
+            }, 1500);
+        }
 
         // Cleanup URL after playback and toggle explain_arm OFF
         audio.onended = () => {
