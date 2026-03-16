@@ -1176,6 +1176,7 @@ async function playTTS(text) {
 // ========================================
 
 let startupAudioScheduled = false;
+let startupAudioPlayed = false;
 
 /**
  * Play startup greeting audio with lip-sync after user interaction.
@@ -1188,9 +1189,9 @@ function scheduleStartupAudio() {
 
     // Wait for first user interaction
     const waitForInteraction = () => {
-        // If TTS is disabled, don't play audio
-        if (!state.ttsEnabled) {
-            console.log('[Startup Audio] TTS disabled, skipping startup audio');
+        // If TTS is disabled or already played, don't play audio
+        if (!state.ttsEnabled || startupAudioPlayed) {
+            console.log('[Startup Audio] TTS disabled or already played, skipping');
             return;
         }
 
@@ -1209,13 +1210,23 @@ function scheduleStartupAudio() {
 
 /**
  * Fetch and play startup greeting audio with lip-sync.
+ * Only plays once per session.
  */
 async function playStartupAudio() {
+    // Prevent multiple plays
+    if (startupAudioPlayed) {
+        console.log('[Startup Audio] Already played, skipping');
+        return;
+    }
+
     // Check if TTS is enabled
     if (!state.ttsEnabled) {
         console.log('[Startup Audio] TTS disabled, skipping playback');
         return;
     }
+
+    // Mark as played immediately to prevent duplicates
+    startupAudioPlayed = true;
 
     try {
         console.log('[Startup Audio] Fetching startup audio...');
