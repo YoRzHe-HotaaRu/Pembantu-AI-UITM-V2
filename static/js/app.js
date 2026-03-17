@@ -2436,7 +2436,9 @@ function handleRemoteChatUpdate(data) {
             // Clear and re-render all messages
             elements.messagesArea.innerHTML = '';
             data.messages.forEach(msg => {
-                addMessage(msg.role, msg.content, msg.reasoning, msg.ragUsed);
+                // Check if this is a voice message
+                const isVoice = msg.isVoice || msg.content === '[Mesej Suara]';
+                addMessage(msg.role, msg.content, msg.reasoning, msg.ragUsed, null, isVoice);
             });
             scrollToBottom();
 
