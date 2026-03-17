@@ -1973,6 +1973,10 @@ async function sendAudioMessage(base64Audio) {
             isVoice: true
         };
 
+        // Store transcribed text for gesture triggering when TTS starts
+        // This enables wave_hello detection for greetings like "hello", "hai", "hi"
+        state.lastUserMessage = transcribedText;
+
         // Send to API using normal flow (RAG enabled!)
         await sendToAPI();
 
