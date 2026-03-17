@@ -1303,6 +1303,7 @@ p {
     overflow-y: auto;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
     animation: modalSlideIn 0.3s ease;
+    touch-action: pan-y;
 }
 
 @keyframes modalSlideIn {
@@ -1358,6 +1359,13 @@ p {
 
 .settings-body {
     padding: 1.5rem;
+    touch-action: pan-y;
+}
+
+.settings-body input,
+.settings-body select,
+.settings-body textarea {
+    touch-action: manipulation;
 }
 
 .settings-section {
@@ -1701,6 +1709,9 @@ p {
     font-size: 1rem;
     letter-spacing: 0.25em;
     text-transform: uppercase;
+    -webkit-user-select: text;
+    user-select: text;
+    touch-action: manipulation;
 }
 
 .session-input:focus {

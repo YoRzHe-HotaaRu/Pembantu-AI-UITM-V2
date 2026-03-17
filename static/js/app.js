@@ -47,7 +47,8 @@ const state = {
         sessionCode: null,
         room: null,
         masterSid: null,
-        devices: []
+        devices: [],
+        isRemoteRecording: false // Track master's recording state on remote device
     },
 
     // Settings modal state
@@ -256,7 +257,7 @@ function setupEventListeners() {
     elements.micButton.addEventListener('click', () => {
         // Remote mode: send command to master
         if (state.remote.role === 'remote' && state.remote.socket) {
-            if (state.audio.isRecording) {
+            if (state.remote.isRemoteRecording) {
                 console.log('[Remote] Sending stop recording to master');
                 state.remote.socket.emit('remote_stop_recording', {
                     room: state.remote.room
@@ -1920,6 +1921,18 @@ async function sendAudioMessage(base64Audio) {
     // Add user message to UI with voice indicator
     addMessage('user', '[Mesej Suara]', null, false, null, true);
 
+    // Save user message to state
+    state.messages.push({ role: 'user', content: '[Mesej Suara]' });
+
+    // Sync user message to remote devices (Master mode)
+    if (state.remote.role === 'master' && state.remote.socket && state.remote.connected) {
+        state.remote.socket.emit('master_chat_update', {
+            messages: state.messages,
+            room: state.remote.room
+        });
+        console.log('[Remote/Master] Synced voice message to remote devices');
+    }
+
     // Prepare multimodal message
     const multimodalMessage = {
         role: 'user',
@@ -2071,6 +2084,17 @@ function initializeRemoteControl() {
             if (e.key === 'Enter') {
                 joinRemoteSession();
             }
+        });
+        // Prevent touch events from propagating to parent elements
+        elements.sessionCodeInput.addEventListener('touchstart', (e) => {
+            e.stopPropagation();
+        }, { passive: true });
+        elements.sessionCodeInput.addEventListener('touchend', (e) => {
+            e.stopPropagation();
+        }, { passive: true });
+        // Ensure focus is maintained on touch
+        elements.sessionCodeInput.addEventListener('focus', (e) => {
+            e.stopPropagation();
         });
     }
 
@@ -2463,8 +2487,14 @@ function handleRemoteAIResponseEnd() {
 
     state.isTyping = false;
 
-    // Finalize the message
-    finalizeResponse();
+    // Just hide typing indicator - the final chat state will come via master_chat_update
+    hideTypingIndicator();
+
+    // Reset content state (don't call finalizeResponse as it plays TTS and adds to state)
+    state.currentContent = '';
+    state.currentReasoning = '';
+    state.structuredResponse = null;
+    state.ragUsed = false;
 }
 
 /**
@@ -2475,6 +2505,9 @@ function handleRemoteRecordingState(data) {
     if (state.remote.role !== 'remote') return;
 
     console.log('[Remote/Remote] Recording state:', data.isRecording ? 'recording' : 'stopped');
+
+    // Update remote recording state
+    state.remote.isRemoteRecording = data.isRecording;
 
     if (data.isRecording) {
         // Show recording UI on remote device
