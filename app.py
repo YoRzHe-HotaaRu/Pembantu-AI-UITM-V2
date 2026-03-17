@@ -10,6 +10,8 @@ import requests
 import asyncio
 import threading
 from flask import Flask, render_template, request, jsonify, Response, stream_with_context, send_from_directory
+from flask_socketio import SocketIO, emit, join_room, leave_room, rooms
+from flask_cors import CORS
 from dotenv import load_dotenv
 
 # Import RAG system
@@ -35,6 +37,13 @@ load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'uitm-chatbot-secret-key')
+
+# Initialize SocketIO for real-time communication between devices
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+CORS(app)
+
+# Store connected devices by room
+connected_devices = {}  # {session_id: {'role': 'master'|'remote', 'room': str}}
 
 # OpenRouter Configuration
 OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY')
@@ -1267,5 +1276,223 @@ def internal_error(error):
     return jsonify({'error': 'Internal server error'}), 500
 
 
+# ============================================
+# WebSocket Event Handlers for Remote Control
+# ============================================
+
+@socketio.on('connect')
+def handle_connect():
+    """Handle client connection."""
+    print(f'[WebSocket] Client connected: {request.sid}')
+    emit('connected', {'sid': request.sid})
+
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    """Handle client disconnection."""
+    sid = request.sid
+    print(f'[WebSocket] Client disconnected: {sid}')
+
+    # Remove from connected devices
+    if sid in connected_devices:
+        device_info = connected_devices[sid]
+        room = device_info.get('room')
+        role = device_info.get('role')
+
+        # Notify other devices in the room
+        if room:
+            emit('device_disconnected', {
+                'sid': sid,
+                'role': role
+            }, room=room)
+
+        del connected_devices[sid]
+
+
+@socketio.on('join_session')
+def handle_join_session(data):
+    """
+    Join a session room with a specific role.
+    Data: {'room': str, 'role': 'master'|'remote'|'standalone'}
+    """
+    room = data.get('room', 'default')
+    role = data.get('role', 'standalone')
+    sid = request.sid
+
+    # Join the room
+    join_room(room)
+
+    # Store device info
+    connected_devices[sid] = {
+        'role': role,
+        'room': room
+    }
+
+    print(f'[WebSocket] Device joined room "{room}" as {role}: {sid}')
+
+    # Notify others in the room
+    emit('device_joined', {
+        'sid': sid,
+        'role': role
+    }, room=room, include_self=False)
+
+    # Send current device list to the new device
+    devices_in_room = [
+        {'sid': s, 'role': d['role']}
+        for s, d in connected_devices.items()
+        if d['room'] == room and s != sid
+    ]
+    emit('device_list', {'devices': devices_in_room})
+
+
+@socketio.on('leave_session')
+def handle_leave_session(data):
+    """Leave a session room."""
+    room = data.get('room', 'default')
+    sid = request.sid
+
+    leave_room(room)
+
+    if sid in connected_devices:
+        del connected_devices[sid]
+
+    print(f'[WebSocket] Device left room "{room}": {sid}')
+    emit('device_left', {'sid': sid}, room=room)
+
+
+@socketio.on('remote_message')
+def handle_remote_message(data):
+    """
+    Receive message from remote device and forward to master.
+    Data: {'message': str, 'room': str}
+    """
+    room = data.get('room', 'default')
+    message = data.get('message', '')
+    sid = request.sid
+
+    print(f'[WebSocket] Remote message from {sid} in room "{room}": {message[:50]}...')
+
+    # Forward to master device(s) in the room
+    emit('master_receive_message', {
+        'message': message,
+        'from_sid': sid,
+        'room': room
+    }, room=room, include_self=False)
+
+
+@socketio.on('remote_start_recording')
+def handle_remote_start_recording(data):
+    """
+    Remote device requests master to start recording.
+    Data: {'room': str}
+    """
+    room = data.get('room', 'default')
+    sid = request.sid
+
+    print(f'[WebSocket] Remote start recording request from {sid} in room "{room}"')
+
+    # Forward to master device(s) in the room
+    emit('master_start_recording', {
+        'from_sid': sid,
+        'room': room
+    }, room=room, include_self=False)
+
+
+@socketio.on('remote_stop_recording')
+def handle_remote_stop_recording(data):
+    """
+    Remote device requests master to stop recording.
+    Data: {'room': str}
+    """
+    room = data.get('room', 'default')
+    sid = request.sid
+
+    print(f'[WebSocket] Remote stop recording request from {sid} in room "{room}"')
+
+    # Forward to master device(s) in the room
+    emit('master_stop_recording', {
+        'from_sid': sid,
+        'room': room
+    }, room=room, include_self=False)
+
+
+@socketio.on('master_transcribed_text')
+def handle_master_transcribed_text(data):
+    """
+    Master sends transcribed text from mic to remote devices.
+    Data: {'text': str, 'room': str}
+    """
+    room = data.get('room', 'default')
+    text = data.get('text', '')
+
+    print(f'[WebSocket] Master transcribed text in room "{room}": {text[:50]}...')
+
+    # Forward to remote devices in the room
+    emit('remote_receive_transcribed', {
+        'text': text,
+        'room': room
+    }, room=room, include_self=False)
+
+
+@socketio.on('master_chat_update')
+def handle_master_chat_update(data):
+    """
+    Master sends chat state updates to remote devices.
+    Data: {'messages': list, 'currentContent': str, 'room': str}
+    """
+    room = data.get('room', 'default')
+
+    # Forward to remote devices in the room
+    emit('remote_chat_update', data, room=room, include_self=False)
+
+
+@socketio.on('master_ai_response_start')
+def handle_master_ai_response_start(data):
+    """
+    Master notifies remote that AI is starting to respond.
+    Data: {'room': str}
+    """
+    room = data.get('room', 'default')
+    emit('remote_ai_response_start', {'room': room}, room=room, include_self=False)
+
+
+@socketio.on('master_ai_response_chunk')
+def handle_master_ai_response_chunk(data):
+    """
+    Master sends AI response chunk to remote devices.
+    Data: {'chunk': str, 'room': str}
+    """
+    room = data.get('room', 'default')
+    emit('remote_ai_response_chunk', data, room=room, include_self=False)
+
+
+@socketio.on('master_ai_response_end')
+def handle_master_ai_response_end(data):
+    """
+    Master notifies remote that AI response is complete.
+    Data: {'room': str}
+    """
+    room = data.get('room', 'default')
+    emit('remote_ai_response_end', {'room': room}, room=room, include_self=False)
+
+
+@socketio.on('master_recording_state')
+def handle_master_recording_state(data):
+    """
+    Master notifies remote devices about recording state.
+    Data: {'isRecording': bool, 'room': str}
+    """
+    room = data.get('room', 'default')
+    is_recording = data.get('isRecording', False)
+
+    print(f'[WebSocket] Master recording state in room "{room}": {"recording" if is_recording else "stopped"}')
+
+    # Forward to remote devices in the room
+    emit('remote_recording_state', {
+        'isRecording': is_recording,
+        'room': room
+    }, room=room, include_self=False)
+
+
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    socketio.run(app, debug=True, host='0.0.0.0', port=5000)

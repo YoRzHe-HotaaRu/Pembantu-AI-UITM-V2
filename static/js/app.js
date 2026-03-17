@@ -39,6 +39,17 @@ const state = {
         currentAudio: null
     },
 
+    // Remote control state
+    remote: {
+        role: localStorage.getItem('uitm-remote-role') || 'standalone', // 'standalone', 'master', 'remote'
+        socket: null,
+        connected: false,
+        sessionCode: null,
+        room: null,
+        masterSid: null,
+        devices: []
+    },
+
     // Settings modal state
     settings: {
         isOpen: false
@@ -96,6 +107,18 @@ const elements = {
     perfMonitorToggle: document.getElementById('perfMonitorToggle'),
     perfMonitorOverlay: document.getElementById('perfMonitorOverlay'),
     html: document.documentElement,
+
+    // Remote control elements
+    roleStandalone: document.getElementById('roleStandalone'),
+    roleMaster: document.getElementById('roleMaster'),
+    roleRemote: document.getElementById('roleRemote'),
+    remoteStatus: document.getElementById('remoteStatus'),
+    sessionCodeContainer: document.getElementById('sessionCodeContainer'),
+    sessionCode: document.getElementById('sessionCode'),
+    copySessionCode: document.getElementById('copySessionCode'),
+    joinSessionContainer: document.getElementById('joinSessionContainer'),
+    sessionCodeInput: document.getElementById('sessionCodeInput'),
+    joinSessionBtn: document.getElementById('joinSessionBtn'),
 
     // Panels
     quickAccessPanel: document.getElementById('quickAccessPanel'),
@@ -173,6 +196,9 @@ function initializeApp() {
     // Initialize performance monitor
     initializePerfMonitor();
 
+    // Initialize remote control
+    initializeRemoteControl();
+
     // Schedule startup audio to play after user interaction + 5 seconds
     scheduleStartupAudio();
 }
@@ -228,6 +254,23 @@ function setupEventListeners() {
 
     // Voice input toggle
     elements.micButton.addEventListener('click', () => {
+        // Remote mode: send command to master
+        if (state.remote.role === 'remote' && state.remote.socket) {
+            if (state.audio.isRecording) {
+                console.log('[Remote] Sending stop recording to master');
+                state.remote.socket.emit('remote_stop_recording', {
+                    room: state.remote.room
+                });
+            } else {
+                console.log('[Remote] Sending start recording to master');
+                state.remote.socket.emit('remote_start_recording', {
+                    room: state.remote.room
+                });
+            }
+            return;
+        }
+
+        // Standalone/Master mode: record locally
         if (state.audio.isRecording) {
             stopAudioRecording();
         } else {
@@ -1760,6 +1803,14 @@ async function startAudioRecording() {
         // Update UI
         enterRecordingMode();
 
+        // Notify remote devices (Master mode)
+        if (state.remote.role === 'master' && state.remote.socket) {
+            state.remote.socket.emit('master_recording_state', {
+                isRecording: true,
+                room: state.remote.room
+            });
+        }
+
         // Auto-stop after 30 seconds (prevent long recordings)
         setTimeout(() => {
             if (state.audio.isRecording) {
@@ -1783,6 +1834,14 @@ function stopAudioRecording() {
     }
 
     state.audio.isRecording = false;
+
+    // Notify remote devices (Master mode)
+    if (state.remote.role === 'master' && state.remote.socket) {
+        state.remote.socket.emit('master_recording_state', {
+            isRecording: false,
+            room: state.remote.room
+        });
+    }
 }
 
 async function handleRecordingStop() {
@@ -1952,6 +2011,501 @@ function exitRecordingMode() {
 
 // Expose toggleReasoning to global scope for onclick handlers
 window.toggleReasoning = toggleReasoning;
+
+// ========================================
+// REMOTE CONTROL FUNCTIONS
+// ========================================
+
+/**
+ * Initialize remote control functionality.
+ */
+function initializeRemoteControl() {
+    // Set initial role from localStorage
+    const savedRole = state.remote.role;
+    updateRoleUI(savedRole);
+
+    // Add event listeners for role buttons
+    if (elements.roleStandalone) {
+        elements.roleStandalone.addEventListener('click', () => setDeviceRole('standalone'));
+    }
+    if (elements.roleMaster) {
+        elements.roleMaster.addEventListener('click', () => setDeviceRole('master'));
+    }
+    if (elements.roleRemote) {
+        elements.roleRemote.addEventListener('click', () => setDeviceRole('remote'));
+    }
+
+    // Join session button
+    if (elements.joinSessionBtn) {
+        elements.joinSessionBtn.addEventListener('click', joinRemoteSession);
+    }
+
+    // Copy session code button
+    if (elements.copySessionCode) {
+        elements.copySessionCode.addEventListener('click', copySessionCodeToClipboard);
+    }
+
+    // Session code input - auto uppercase
+    if (elements.sessionCodeInput) {
+        elements.sessionCodeInput.addEventListener('input', (e) => {
+            e.target.value = e.target.value.toUpperCase();
+        });
+        elements.sessionCodeInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                joinRemoteSession();
+            }
+        });
+    }
+
+    console.log('[Remote] Initialized with role:', savedRole);
+}
+
+/**
+ * Set device role and update UI.
+ * @param {string} role - 'standalone', 'master', or 'remote'
+ */
+function setDeviceRole(role) {
+    console.log('[Remote] Setting role to:', role);
+
+    // Disconnect current socket if exists
+    if (state.remote.socket) {
+        state.remote.socket.disconnect();
+        state.remote.socket = null;
+        state.remote.connected = false;
+    }
+
+    state.remote.role = role;
+    localStorage.setItem('uitm-remote-role', role);
+
+    updateRoleUI(role);
+
+    // Connect based on role
+    if (role === 'master') {
+        connectAsMaster();
+    } else if (role === 'remote') {
+        showJoinSessionUI();
+    }
+}
+
+/**
+ * Update UI based on current role.
+ * @param {string} role - Current role
+ */
+function updateRoleUI(role) {
+    // Update role buttons
+    document.querySelectorAll('.role-option').forEach(btn => {
+        btn.classList.remove('active');
+    });
+
+    const activeBtn = document.getElementById(`role${role.charAt(0).toUpperCase() + role.slice(1)}`);
+    if (activeBtn) {
+        activeBtn.classList.add('active');
+    }
+
+    // Show/hide appropriate containers
+    if (elements.sessionCodeContainer) {
+        elements.sessionCodeContainer.style.display = (role === 'master' && state.remote.sessionCode) ? 'block' : 'none';
+    }
+    if (elements.joinSessionContainer) {
+        elements.joinSessionContainer.style.display = role === 'remote' ? 'flex' : 'none';
+    }
+}
+
+/**
+ * Connect as Master device.
+ */
+function connectAsMaster() {
+    console.log('[Remote] Connecting as Master...');
+
+    updateRemoteStatus('connecting', 'Menyambung...');
+
+    // Generate session code
+    const sessionCode = generateSessionCode();
+    state.remote.sessionCode = sessionCode;
+    state.remote.room = sessionCode;
+
+    // Connect to WebSocket
+    connectWebSocket(() => {
+        // Emit join session as master
+        state.remote.socket.emit('join_session', {
+            room: sessionCode,
+            role: 'master'
+        });
+
+        // Update UI
+        if (elements.sessionCode) {
+            elements.sessionCode.textContent = sessionCode;
+        }
+        if (elements.sessionCodeContainer) {
+            elements.sessionCodeContainer.style.display = 'block';
+        }
+
+        updateRemoteStatus('connected', 'Disambung (Master)');
+        console.log('[Remote] Connected as Master with code:', sessionCode);
+    });
+}
+
+/**
+ * Show join session UI for remote device.
+ */
+function showJoinSessionUI() {
+    updateRemoteStatus('disconnected', 'Masukkan kod sesi');
+    if (elements.joinSessionContainer) {
+        elements.joinSessionContainer.style.display = 'flex';
+    }
+    if (elements.sessionCodeInput) {
+        elements.sessionCodeInput.focus();
+    }
+}
+
+/**
+ * Join a remote session as Remote device.
+ */
+function joinRemoteSession() {
+    const code = elements.sessionCodeInput?.value.trim().toUpperCase();
+
+    if (!code || code.length !== 6) {
+        alert('Sila masukkan kod sesi 6 aksara');
+        return;
+    }
+
+    console.log('[Remote] Joining session with code:', code);
+
+    updateRemoteStatus('connecting', 'Menyambung...');
+
+    state.remote.room = code;
+
+    // Connect to WebSocket
+    connectWebSocket(() => {
+        // Emit join session as remote
+        state.remote.socket.emit('join_session', {
+            room: code,
+            role: 'remote'
+        });
+
+        console.log('[Remote] Joined session:', code);
+    });
+}
+
+/**
+ * Connect to WebSocket server.
+ * @param {Function} callback - Called when connected
+ */
+function connectWebSocket(callback) {
+    if (state.remote.socket && state.remote.socket.connected) {
+        callback();
+        return;
+    }
+
+    try {
+        state.remote.socket = io({
+            transports: ['websocket', 'polling'],
+            reconnection: true,
+            reconnectionAttempts: 10,
+            reconnectionDelay: 1000
+        });
+
+        state.remote.socket.on('connect', () => {
+            console.log('[Remote] WebSocket connected');
+            state.remote.connected = true;
+            callback();
+        });
+
+        state.remote.socket.on('disconnect', () => {
+            console.log('[Remote] WebSocket disconnected');
+            state.remote.connected = false;
+            updateRemoteStatus('disconnected', 'Terputus');
+        });
+
+        state.remote.socket.on('connect_error', (error) => {
+            console.error('[Remote] WebSocket error:', error);
+            updateRemoteStatus('error', 'Ralat sambungan');
+        });
+
+        // --- Master events ---
+        state.remote.socket.on('master_receive_message', handleMasterReceiveMessage);
+        state.remote.socket.on('master_start_recording', handleMasterStartRecording);
+        state.remote.socket.on('master_stop_recording', handleMasterStopRecording);
+
+        // --- Remote events ---
+        state.remote.socket.on('remote_receive_transcribed', handleRemoteReceiveTranscribed);
+        state.remote.socket.on('remote_chat_update', handleRemoteChatUpdate);
+        state.remote.socket.on('remote_ai_response_start', handleRemoteAIResponseStart);
+        state.remote.socket.on('remote_ai_response_chunk', handleRemoteAIResponseChunk);
+        state.remote.socket.on('remote_ai_response_end', handleRemoteAIResponseEnd);
+        state.remote.socket.on('remote_recording_state', handleRemoteRecordingState);
+
+        // --- Device events ---
+        state.remote.socket.on('device_joined', handleDeviceJoined);
+        state.remote.socket.on('device_disconnected', handleDeviceDisconnected);
+        state.remote.socket.on('device_list', handleDeviceList);
+
+    } catch (error) {
+        console.error('[Remote] Failed to connect WebSocket:', error);
+        updateRemoteStatus('error', 'Ralat sambungan');
+    }
+}
+
+/**
+ * Update remote status indicator.
+ * @param {string} status - 'connected', 'connecting', 'disconnected', 'error'
+ * @param {string} text - Status text to display
+ */
+function updateRemoteStatus(status, text) {
+    if (!elements.remoteStatus) return;
+
+    const indicator = elements.remoteStatus.querySelector('.status-indicator');
+    const statusText = elements.remoteStatus.querySelector('.status-text');
+
+    if (indicator) {
+        indicator.className = 'status-indicator ' + status;
+    }
+    if (statusText) {
+        statusText.textContent = text;
+    }
+}
+
+/**
+ * Generate a 6-character session code.
+ * @returns {string} Session code
+ */
+function generateSessionCode() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Removed confusing chars: I, O, 0, 1
+    let code = '';
+    for (let i = 0; i < 6; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return code;
+}
+
+/**
+ * Copy session code to clipboard.
+ */
+async function copySessionCodeToClipboard() {
+    if (!state.remote.sessionCode) return;
+
+    try {
+        await navigator.clipboard.writeText(state.remote.sessionCode);
+
+        // Visual feedback
+        const btn = elements.copySessionCode;
+        const originalIcon = btn.innerHTML;
+        btn.innerHTML = '<i data-lucide="check"></i>';
+        lucide.createIcons();
+
+        setTimeout(() => {
+            btn.innerHTML = originalIcon;
+            lucide.createIcons();
+        }, 2000);
+
+        console.log('[Remote] Session code copied');
+    } catch (error) {
+        console.error('[Remote] Failed to copy:', error);
+    }
+}
+
+// ========================================
+// MASTER EVENT HANDLERS
+// ========================================
+
+/**
+ * Handle message received from remote device.
+ * @param {Object} data - Message data
+ */
+function handleMasterReceiveMessage(data) {
+    if (state.remote.role !== 'master') return;
+
+    console.log('[Remote/Master] Received message from remote:', data.message);
+
+    // Set message input and trigger send
+    elements.messageInput.value = data.message;
+    sendMessage();
+}
+
+/**
+ * Handle start recording request from remote device.
+ * @param {Object} data - Request data
+ */
+function handleMasterStartRecording(data) {
+    if (state.remote.role !== 'master') return;
+
+    console.log('[Remote/Master] Start recording requested');
+
+    // Trigger mic button click
+    if (elements.micButton && !state.audio.isRecording) {
+        elements.micButton.click();
+    }
+}
+
+/**
+ * Handle stop recording request from remote device.
+ * @param {Object} data - Request data
+ */
+function handleMasterStopRecording(data) {
+    if (state.remote.role !== 'master') return;
+
+    console.log('[Remote/Master] Stop recording requested');
+
+    // Trigger mic button click to stop
+    if (elements.micButton && state.audio.isRecording) {
+        elements.micButton.click();
+    }
+}
+
+// ========================================
+// REMOTE EVENT HANDLERS
+// ========================================
+
+/**
+ * Handle transcribed text received from master.
+ * @param {Object} data - Transcribed data
+ */
+function handleRemoteReceiveTranscribed(data) {
+    if (state.remote.role !== 'remote') return;
+
+    console.log('[Remote/Remote] Received transcribed text:', data.text);
+
+    // Show in input
+    elements.messageInput.value = data.text;
+}
+
+/**
+ * Handle chat update from master.
+ * @param {Object} data - Chat data
+ */
+function handleRemoteChatUpdate(data) {
+    if (state.remote.role !== 'remote') return;
+
+    console.log('[Remote/Remote] Received chat update');
+
+    // Update messages
+    if (data.messages) {
+        state.messages = data.messages;
+        // Clear and re-render messages
+        elements.messagesArea.innerHTML = '';
+        data.messages.forEach(msg => {
+            addMessage(msg.role, msg.content, msg.reasoning, msg.ragUsed);
+        });
+        scrollToBottom();
+    }
+}
+
+/**
+ * Handle AI response start from master.
+ * @param {Object} data - Response data
+ */
+function handleRemoteAIResponseStart(data) {
+    if (state.remote.role !== 'remote') return;
+
+    console.log('[Remote/Remote] AI response starting');
+
+    state.isTyping = true;
+    state.currentContent = '';
+    state.currentReasoning = '';
+
+    // Show typing indicator
+    showTypingIndicator();
+}
+
+/**
+ * Handle AI response chunk from master.
+ * @param {Object} data - Chunk data
+ */
+function handleRemoteAIResponseChunk(data) {
+    if (state.remote.role !== 'remote') return;
+
+    // Append content
+    state.currentContent += data.chunk || '';
+
+    // Update typing indicator with content
+    updateTypingMessage(state.currentContent);
+}
+
+/**
+ * Handle AI response end from master.
+ */
+function handleRemoteAIResponseEnd() {
+    if (state.remote.role !== 'remote') return;
+
+    console.log('[Remote/Remote] AI response ended');
+
+    state.isTyping = false;
+
+    // Finalize the message
+    finalizeResponse();
+}
+
+/**
+ * Handle recording state change from master.
+ * @param {Object} data - Recording state data
+ */
+function handleRemoteRecordingState(data) {
+    if (state.remote.role !== 'remote') return;
+
+    console.log('[Remote/Remote] Recording state:', data.isRecording ? 'recording' : 'stopped');
+
+    if (data.isRecording) {
+        // Show recording UI on remote device
+        enterRecordingMode();
+    } else {
+        // Hide recording UI on remote device
+        exitRecordingMode();
+    }
+}
+
+// ========================================
+// DEVICE EVENT HANDLERS
+// ========================================
+
+function handleDeviceJoined(data) {
+    console.log('[Remote] Device joined:', data.role);
+}
+
+function handleDeviceDisconnected(data) {
+    console.log('[Remote] Device disconnected:', data.role);
+}
+
+function handleDeviceList(data) {
+    console.log('[Remote] Device list:', data.devices);
+    state.remote.devices = data.devices;
+}
+
+// ========================================
+// OVERRIDDEN FUNCTIONS FOR REMOTE MODE
+// ========================================
+
+// Store original sendMessage function
+const originalSendMessage = sendMessage;
+
+/**
+ * Override sendMessage to handle remote mode.
+ */
+sendMessage = function() {
+    if (state.remote.role === 'remote' && state.remote.socket) {
+        // Remote mode: send message to master
+        const message = elements.messageInput.value.trim();
+        if (message) {
+            console.log('[Remote] Sending message to master');
+            state.remote.socket.emit('remote_message', {
+                message: message,
+                room: state.remote.room
+            });
+            elements.messageInput.value = '';
+        }
+        return;
+    }
+
+    // Standalone or Master mode: use original
+    originalSendMessage();
+
+    // If master, sync to remote devices
+    if (state.remote.role === 'master' && state.remote.socket) {
+        state.remote.socket.emit('master_chat_update', {
+            messages: state.messages,
+            room: state.remote.room
+        });
+    }
+};
 
 // Handle page visibility change (pause/resume functionality)
 document.addEventListener('visibilitychange', () => {

@@ -12,6 +12,9 @@
     
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Socket.IO Client -->
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     
     <!-- Favicon -->
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='assets/logo_uitm.png') }}">
@@ -381,6 +384,49 @@
                     <div class="vts-status" id="vtsStatus">
                         <span class="status-indicator disconnected"></span>
                         <span class="status-text">Tidak disambung</span>
+                    </div>
+                </div>
+
+                <!-- Remote Control Section -->
+                <div class="settings-section" id="remoteControlSection">
+                    <h4><i data-lucide="smartphone"></i> Remote Control</h4>
+                    <div class="remote-control-info">
+                        <span class="remote-label">Mode Peranti</span>
+                        <span class="remote-desc">Kawal dari telefon/tablet</span>
+                    </div>
+                    <div class="device-role-options">
+                        <button class="role-option" data-role="standalone" id="roleStandalone">
+                            <i data-lucide="monitor"></i>
+                            <span>Bebas</span>
+                        </button>
+                        <button class="role-option" data-role="master" id="roleMaster">
+                            <i data-lucide="pc-case"></i>
+                            <span>Master (PC)</span>
+                        </button>
+                        <button class="role-option" data-role="remote" id="roleRemote">
+                            <i data-lucide="smartphone"></i>
+                            <span>Remote</span>
+                        </button>
+                    </div>
+                    <div class="remote-status" id="remoteStatus">
+                        <span class="status-indicator disconnected"></span>
+                        <span class="status-text">Tidak disambung</span>
+                    </div>
+                    <div class="session-code-container" id="sessionCodeContainer" style="display: none;">
+                        <span class="session-label">Kod Sesi:</span>
+                        <div class="session-code-box">
+                            <span id="sessionCode">------</span>
+                            <button class="copy-code-btn" id="copySessionCode" title="Salin kod">
+                                <i data-lucide="copy"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="join-session-container" id="joinSessionContainer" style="display: none;">
+                        <input type="text" id="sessionCodeInput" class="session-input" placeholder="Masukkan kod sesi..." maxlength="6">
+                        <button class="join-session-btn" id="joinSessionBtn">
+                            <i data-lucide="link"></i>
+                            Sambung
+                        </button>
                     </div>
                 </div>
 
