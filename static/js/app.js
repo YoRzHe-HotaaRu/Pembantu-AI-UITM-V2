@@ -402,6 +402,14 @@ async function sendMessage() {
     // Save to state
     state.messages.push({ role: 'user', content });
 
+    // Sync user message to remote devices (Master mode)
+    if (state.remote.role === 'master' && state.remote.socket && state.remote.connected) {
+        state.remote.socket.emit('master_chat_update', {
+            messages: state.messages,
+            room: state.remote.room
+        });
+    }
+
     // Show typing indicator with live reasoning
     showTypingIndicator();
 
@@ -799,6 +807,15 @@ function finalizeResponse() {
         setTimeout(() => {
             disableExplainGesture();
         }, 1000);
+    }
+
+    // Sync chat to remote devices (Master mode)
+    if (state.remote.role === 'master' && state.remote.socket && state.remote.connected) {
+        state.remote.socket.emit('master_chat_update', {
+            messages: state.messages,
+            room: state.remote.room
+        });
+        console.log('[Remote/Master] Synced chat to remote devices');
     }
 }
 
@@ -2183,6 +2200,10 @@ function joinRemoteSession() {
             role: 'remote'
         });
 
+        // Update status after successful join
+        updateRemoteStatus('connected', 'Disambung (Remote)');
+        console.log('[Remote] Joined session:', code);
+
         console.log('[Remote] Joined session:', code);
     });
 }
@@ -2376,17 +2397,28 @@ function handleRemoteReceiveTranscribed(data) {
 function handleRemoteChatUpdate(data) {
     if (state.remote.role !== 'remote') return;
 
-    console.log('[Remote/Remote] Received chat update');
+    console.log('[Remote/Remote] Received chat update, messages:', data.messages?.length);
 
     // Update messages
-    if (data.messages) {
-        state.messages = data.messages;
-        // Clear and re-render messages
-        elements.messagesArea.innerHTML = '';
-        data.messages.forEach(msg => {
-            addMessage(msg.role, msg.content, msg.reasoning, msg.ragUsed);
-        });
-        scrollToBottom();
+    if (data.messages && data.messages.length > 0) {
+        // Check if we have new messages (AI response)
+        const currentLength = state.messages.length;
+        const newLength = data.messages.length;
+
+        if (newLength > currentLength) {
+            // We have new messages - likely the AI response
+            state.messages = data.messages;
+
+            // Clear and re-render all messages
+            elements.messagesArea.innerHTML = '';
+            data.messages.forEach(msg => {
+                addMessage(msg.role, msg.content, msg.reasoning, msg.ragUsed);
+            });
+            scrollToBottom();
+
+            // Hide typing indicator since we have the response
+            hideTypingIndicator();
+        }
     }
 }
 
@@ -2486,25 +2518,26 @@ sendMessage = function() {
         const message = elements.messageInput.value.trim();
         if (message) {
             console.log('[Remote] Sending message to master');
+
+            // Add user message to local state immediately for feedback
+            addMessage('user', message);
+            state.messages.push({ role: 'user', content: message });
+
+            // Send to master
             state.remote.socket.emit('remote_message', {
                 message: message,
                 room: state.remote.room
             });
             elements.messageInput.value = '';
+
+            // Show typing indicator while waiting for AI
+            showTypingIndicator();
         }
         return;
     }
 
     // Standalone or Master mode: use original
     originalSendMessage();
-
-    // If master, sync to remote devices
-    if (state.remote.role === 'master' && state.remote.socket) {
-        state.remote.socket.emit('master_chat_update', {
-            messages: state.messages,
-            room: state.remote.room
-        });
-    }
 };
 
 // Handle page visibility change (pause/resume functionality)
