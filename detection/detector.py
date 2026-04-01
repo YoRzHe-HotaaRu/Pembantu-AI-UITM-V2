@@ -90,6 +90,16 @@ class HumanDetector:
         # State tracking for enter/exit events
         self._was_person_present = False
 
+        # Size threshold — person height must be >= this fraction of frame height
+        self._size_threshold = 0.35  # 35% of frame height
+        self._frame_area = frame_width * frame_height
+
+        # Smoothing — require consecutive frames before enter/exit
+        self._enter_threshold = 5   # 5 consecutive frames in zone = entered
+        self._exit_threshold = 15   # 15 consecutive frames out of zone = exited
+        self._in_zone_count = 0     # consecutive frames person is in zone
+        self._out_zone_count = 0    # consecutive frames person is out of zone
+
     def initialize(self):
         """Load the YOLO model. Call this once before starting."""
         logger.info(f"[Detector] Loading YOLOv8 model: {self.model_path}")
@@ -191,6 +201,9 @@ class HumanDetector:
         self._latest_annotated = None
         self._latest_detections = []
         self._person_count = 0
+        self._was_person_present = False
+        self._in_zone_count = 0
+        self._out_zone_count = 0
         logger.info("[Detector] Stopped")
 
     @property
@@ -297,7 +310,6 @@ class HumanDetector:
                 # Skip YOLO — reuse last results with fresh frame
                 detections = last_detections
                 annotated = frame.copy()
-                # Draw last bounding boxes on current frame
                 for d in detections:
                     cv2.rectangle(
                         annotated,
@@ -316,15 +328,76 @@ class HumanDetector:
                         1,
                     )
 
-            # Draw info overlay
-            person_count = len(detections)
+            # Filter detections by height (person must be close enough)
+            min_height = self.frame_height * self._size_threshold
+            close_detections = []
+            for d in detections:
+                bbox_height = d["y2"] - d["y1"]
+                bbox_area = (d["x2"] - d["x1"]) * bbox_height
+                d["bbox_area"] = bbox_area
+                d["bbox_height"] = bbox_height
+                d["fill_pct"] = round(bbox_height / self.frame_height * 100, 1)
+                if bbox_height >= min_height:
+                    close_detections.append(d)
+
+            # Draw fill % on ALL detected persons (not just close ones)
+            for d in detections:
+                color = (0, 255, 0) if d in close_detections else (0, 0, 255)
+                label = f"{d['fill_pct']}%"
+                cv2.putText(
+                    annotated, label,
+                    (d["x2"] - 40, d["y1"] + 15),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2,
+                )
+
+            # Smoothing: track consecutive frames in/out of zone
+            person_in_zone = len(close_detections) > 0
+            if person_in_zone:
+                self._in_zone_count += 1
+                self._out_zone_count = 0
+            else:
+                self._out_zone_count += 1
+                self._in_zone_count = 0
+
+            # Only trigger enter after consecutive frames in zone
+            person_present = self._in_zone_count >= self._enter_threshold
+            # Only trigger exit after consecutive frames out of zone
+            person_gone = self._out_zone_count >= self._exit_threshold
+
+            # Draw size threshold guide box on frame
+            thresh_h = int(self.frame_height * self._size_threshold)
+            thresh_w = int(self.frame_width * self._size_threshold)
+            thresh_x1 = (annotated.shape[1] - thresh_w) // 2
+            thresh_y1 = (annotated.shape[0] - thresh_h) // 2
+            cv2.rectangle(
+                annotated,
+                (thresh_x1, thresh_y1),
+                (thresh_x1 + thresh_w, thresh_y1 + thresh_h),
+                (0, 255, 255),
+                1,
+            )
             cv2.putText(
                 annotated,
-                f"People: {person_count}",
+                f"Salam zone: {int(self._size_threshold * 100)}% height",
+                (thresh_x1, thresh_y1 - 6),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.4,
+                (0, 255, 255),
+                1,
+            )
+
+            # Draw info overlay
+            person_count = len(close_detections)
+            # Show max fill % from all detections
+            max_fill = max([d["fill_pct"] for d in detections], default=0)
+            zone_label = "IN ZONE" if person_present else f"{max_fill:.0f}%/{int(self._size_threshold*100)}%"
+            cv2.putText(
+                annotated,
+                f"People: {person_count} | {zone_label}",
                 (10, 30),
                 cv2.FONT_HERSHEY_SIMPLEX,
-                0.8,
-                (0, 255, 0) if person_count > 0 else (128, 128, 128),
+                0.7,
+                (0, 255, 0) if person_present else (128, 128, 128),
                 2,
             )
 
@@ -349,18 +422,17 @@ class HumanDetector:
             with self._lock:
                 self._latest_frame = frame
                 self._latest_annotated = annotated
-                self._latest_detections = detections
+                self._latest_detections = close_detections
                 self._person_count = person_count
 
-            # Fire callbacks for enter/exit events
-            person_present = person_count > 0
+            # Fire callbacks for enter/exit events (smoothed)
             if person_present and not self._was_person_present:
                 if self._on_person_enter:
                     try:
-                        self._on_person_enter(person_count, detections)
+                        self._on_person_enter(person_count, close_detections)
                     except Exception as e:
                         logger.error(f"[Detector] on_person_enter error: {e}")
-            elif not person_present and self._was_person_present:
+            elif person_gone and self._was_person_present:
                 if self._on_person_exit:
                     try:
                         self._on_person_exit()
@@ -374,7 +446,10 @@ class HumanDetector:
                     except Exception as e:
                         logger.error(f"[Detector] on_count_change error: {e}")
 
-            self._was_person_present = person_present
+            if person_present:
+                self._was_person_present = True
+            elif person_gone:
+                self._was_person_present = False
 
         logger.info("[Detector] Detection loop ended")
 

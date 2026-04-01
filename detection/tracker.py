@@ -63,6 +63,7 @@ class VisitorTracker:
         self._current_session: Optional[VisitorSession] = None
         self._sessions: List[VisitorSession] = []
         self._person_first_seen: Optional[float] = None
+        self._pending_greeting: Optional[str] = None
 
         # Callbacks
         self._on_greeting_trigger: Optional[Callable] = None
@@ -141,6 +142,7 @@ class VisitorTracker:
         if self._current_session:
             self._current_session.greeted = True
 
+        self._pending_greeting = "Assalamualaikum dan selamat datang ke UiTM Kampus Tapah! Bagaimana saya boleh membantu anda hari ini?"
         logger.info(f"[Tracker] Triggering greeting for {count} visitor(s)")
 
         if self._on_greeting_trigger:
@@ -179,6 +181,8 @@ class VisitorTracker:
     def get_stats(self) -> Dict:
         """Get current tracking statistics."""
         with self._lock:
+            pending = self._pending_greeting
+            self._pending_greeting = None  # Consume after reading
             return {
                 "total_visitors": self._total_visitors,
                 "current_count": self._current_count,
@@ -192,6 +196,7 @@ class VisitorTracker:
                 "session_duration": self._current_session.duration
                 if self._current_session
                 else 0,
+                "pending_greeting": pending,
             }
 
     def reset(self):

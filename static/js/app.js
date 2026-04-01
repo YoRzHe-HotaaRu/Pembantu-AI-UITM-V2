@@ -2884,6 +2884,13 @@ function startDetectionStatsPolling() {
             const data = await response.json();
             if (data.running) {
                 updateDetectionStats(data);
+
+                // Check for pending greeting from auto-detection
+                if (data.stats && data.stats.pending_greeting) {
+                    const greetingText = data.stats.pending_greeting;
+                    addMessage('assistant', greetingText);
+                    playTTS(greetingText);
+                }
             } else {
                 state.detection.running = false;
                 updateDetectionUI(false);

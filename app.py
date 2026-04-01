@@ -309,17 +309,16 @@ def on_person_exited():
 
 
 def on_greeting_triggered(visitor_count, session):
-    """Callback when greeting should be triggered. Sends greeting message + TTS."""
+    """Callback when greeting should be triggered."""
     print(f"[Detection] Greeting triggered for {visitor_count} visitor(s)")
 
-    greeting_text = "Assalamualaikum dan selamat datang ke UiTM Kampus Tapah! Bagaimana saya boleh membantu anda hari ini?"
-
+    # Notify frontend (for SocketIO-connected clients)
     socketio.emit(
         "detection_greeting_trigger",
         {
             "visitor_count": visitor_count,
             "session_duration": session.duration if session else 0,
-            "message": greeting_text,
+            "message": "Assalamualaikum dan selamat datang ke UiTM Kampus Tapah! Bagaimana saya boleh membantu anda hari ini?",
         },
     )
 
