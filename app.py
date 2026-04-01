@@ -81,6 +81,7 @@ def _ensure_detection():
         detector.set_callbacks(
             on_person_enter=on_person_detected,
             on_person_exit=on_person_exited,
+            on_person_tick=on_person_tick,
         )
 
         zone_detector = get_zone_detector()
@@ -296,6 +297,12 @@ def on_person_detected(count, detections):
             ],
         },
     )
+    if visitor_tracker:
+        visitor_tracker.person_entered(count, detections)
+
+
+def on_person_tick(count, detections):
+    """Called every frame while person is in zone. Feeds tracker for greeting timer."""
     if visitor_tracker:
         visitor_tracker.person_entered(count, detections)
 

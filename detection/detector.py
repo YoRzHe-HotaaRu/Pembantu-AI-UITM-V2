@@ -86,6 +86,7 @@ class HumanDetector:
         self._on_person_enter: Optional[Callable] = None
         self._on_person_exit: Optional[Callable] = None
         self._on_count_change: Optional[Callable] = None
+        self._on_person_tick: Optional[Callable] = None  # fires every frame while in zone
 
         # State tracking for enter/exit events
         self._was_person_present = False
@@ -112,11 +113,13 @@ class HumanDetector:
         on_person_enter: Optional[Callable] = None,
         on_person_exit: Optional[Callable] = None,
         on_count_change: Optional[Callable] = None,
+        on_person_tick: Optional[Callable] = None,
     ):
         """Set event callbacks for person detection events."""
         self._on_person_enter = on_person_enter
         self._on_person_exit = on_person_exit
         self._on_count_change = on_count_change
+        self._on_person_tick = on_person_tick
 
     def _open_camera(self, camera_index: int):
         """Try to open camera with multiple backends. Returns cv2.VideoCapture or None."""
@@ -438,6 +441,13 @@ class HumanDetector:
                         self._on_person_exit()
                     except Exception as e:
                         logger.error(f"[Detector] on_person_exit error: {e}")
+
+            # Tick callback — fires every frame while person is in zone
+            if person_present and self._on_person_tick:
+                try:
+                    self._on_person_tick(person_count, close_detections)
+                except Exception as e:
+                    logger.error(f"[Detector] on_person_tick error: {e}")
 
             if person_present != self._was_person_present:
                 if self._on_count_change:
