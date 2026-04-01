@@ -10,6 +10,7 @@
 const state = {
     messages: [],
     isTyping: false,
+    isSpeaking: false, // true while TTS audio is playing
     currentPanel: 'quick', // 'quick' or 'chat' (for mobile)
     theme: localStorage.getItem('uitm-theme') || 'light',
     model: 'google/gemini-3.1-flash-lite-preview',
@@ -297,6 +298,9 @@ function setupEventListeners() {
 
     // Voice input toggle
     elements.micButton.addEventListener('click', () => {
+        // Block voice input while speaking
+        if (state.isSpeaking) return;
+
         // Remote mode: send command to master
         if (state.remote.role === 'remote' && state.remote.socket) {
             if (state.remote.isRemoteRecording) {
@@ -429,7 +433,7 @@ function autoResizeTextarea() {
 
 async function sendMessage() {
     const content = elements.messageInput.value.trim();
-    if (!content || state.isTyping) return;
+    if (!content || state.isTyping || state.isSpeaking) return;
 
     // Add user message
     addMessage('user', content);
@@ -640,6 +644,7 @@ function showTypingIndicator() {
 
     elements.typingIndicator.style.display = 'block';
     elements.sendButton.disabled = true;
+    updateInputState();
 
     scrollToBottom();
 }
@@ -648,9 +653,39 @@ function hideTypingIndicator() {
     state.isTyping = false;
     elements.typingIndicator.style.display = 'none';
     elements.sendButton.disabled = false;
+    updateInputState();
 
     // Focus input
     elements.messageInput.focus();
+}
+
+function updateInputState() {
+    const blocked = state.isTyping || state.isSpeaking;
+
+    // Disable send button
+    if (elements.sendButton) {
+        elements.sendButton.disabled = blocked;
+    }
+
+    // Visually disable mic button
+    if (elements.micButton) {
+        elements.micButton.style.opacity = blocked ? '0.4' : '1';
+        elements.micButton.style.pointerEvents = blocked ? 'none' : 'auto';
+    }
+
+    // Show hint when blocked
+    if (elements.inputHint) {
+        if (state.isSpeaking) {
+            elements.inputHint.textContent = '🔊 Avatar sedang bercakap...';
+            elements.inputHint.style.color = 'var(--accent-tertiary)';
+        } else if (state.isTyping) {
+            elements.inputHint.textContent = '⏳ AI sedang menjawab...';
+            elements.inputHint.style.color = 'var(--accent-tertiary)';
+        } else {
+            elements.inputHint.textContent = 'Taip mesej atau tekan ikon mikrofon untuk bercakap';
+            elements.inputHint.style.color = '';
+        }
+    }
 }
 
 function updateLiveReasoning(reasoning) {
@@ -1234,13 +1269,20 @@ async function playTTS(text) {
 
             audio.play().catch(err => {
                 console.error('Audio playback failed:', err);
+                state.isSpeaking = false;
             });
+
+            // Block input while speaking
+            state.isSpeaking = true;
+            updateInputState();
 
             // Cleanup URL after playback
             audio.onended = () => {
                 URL.revokeObjectURL(audioUrl);
                 state.vts.lipSyncData = null;
                 state.vts.currentAudio = null;
+                state.isSpeaking = false;
+                updateInputState();
             };
         } else {
             // Response is audio only
@@ -1263,11 +1305,18 @@ async function playTTS(text) {
 
             audio.play().catch(err => {
                 console.error('Audio playback failed:', err);
+                state.isSpeaking = false;
             });
+
+            // Block input while speaking
+            state.isSpeaking = true;
+            updateInputState();
 
             // Cleanup URL after playback
             audio.onended = () => {
                 URL.revokeObjectURL(audioUrl);
+                state.isSpeaking = false;
+                updateInputState();
             };
         }
 
